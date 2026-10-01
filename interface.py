@@ -23,6 +23,7 @@ class VolverMenu(Exception):
 
 
 VOLVER_MENU = object()
+FINALIZAR_MENU = object()
 
 
 def cargar_datos():
@@ -305,7 +306,9 @@ def ejecutar_menu(titulo, opciones, texto_volver="Volver"):
         if opcion is None or opcion is VOLVER_MENU:
             return
         _descripcion, accion, argumentos = opciones[opcion]
-        ejecutar_accion(accion, *argumentos)
+        resultado = ejecutar_accion(accion, *argumentos)
+        if resultado is FINALIZAR_MENU:
+            return
 
 
 def pesos(monto):
@@ -533,9 +536,15 @@ def menu_cliente(cliente, sesion):
         "1": ("Ver paquetes vigentes", ver_paquetes, ()),
         "2": ("Reservar", reservar, (cliente,)),
         "3": ("Mis reservas", ver_mis_reservas, (cliente, sesion)),
+        "4": ("Cerrar sesión", cerrar_sesion_cliente, ()),
     }
     ejecutar_menu("Menú cliente", opciones, "Cerrar sesión y volver")
     sesion.cerrar()
+
+
+def cerrar_sesion_cliente():
+    print("Sesión cerrada. Volviendo al menú principal.")
+    return FINALIZAR_MENU
 
 
 def menu_administrador(admin, sesion):
