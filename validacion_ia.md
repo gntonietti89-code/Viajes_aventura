@@ -32,5 +32,32 @@ registrarse, iniciar sesión), menú del administrador (destinos y paquetes) y m
 y ver sus reservas). Las contraseñas se piden ocultas y no hay claves escritas en el código: el
 administrador se crea al iniciar. Se agregaron 3 métodos de consulta que no están en el UML
 (`Paquete.getNombre()`, `Paquete.getFechaSalida()`, `Reserva.getPaquete()`) porque el menú los necesita
-para mostrar la información. Por ahora los datos se pierden al cerrar el programa (la base de datos es
-el 2.1.3).
+para mostrar la información. En esa etapa previa al criterio 2.1.3, los datos se perdían al cerrar el
+programa; la siguiente sección documenta la integración de SQLite.
+
+## 2.1.3 — Integrar conexión a base de datos y CRUD
+
+**Qué se pidió:** conectar la solución a una base de datos mediante una librería oficial de Python y
+realizar operaciones de creación, consulta, actualización y eliminación.
+
+**Apoyo de IA:** GitHub Copilot en VS Code se utilizó para proponer la capa SQLite, su esquema
+relacional y los cambios para conectar el menú y reconstruir el modelo al iniciar. La solución se
+revisó contra las clases existentes antes de integrarla.
+
+**Decisiones técnicas revisadas:** se eligió `sqlite3` porque forma parte de la biblioteca estándar y
+no requiere instalar ni administrar un servidor. `database.py` define tablas para usuarios, destinos,
+paquetes, asociaciones paquete-destino y reservas, con claves foráneas y consultas parametrizadas.
+Las contraseñas se guardan como el hash que ya produce `Usuario`, nunca como texto plano. Al cargar,
+se conservan los IDs, las asociaciones, los estados de las reservas y el precio fijado al publicar un
+paquete. El menú implementa el ciclo de vida de destinos (registro, consulta, actualización del costo y
+retiro); las demás entidades también se crean y consultan desde la aplicación y disponen de operaciones
+CRUD en la capa de datos.
+
+**Validación ejecutada:** los módulos `main.py`, `interface.py` y `database.py` compilaron con
+`py_compile`. Una prueba aislada en una base temporal verificó inserción, consulta, actualización y
+eliminación de usuarios, destinos, paquetes y reservas, además del vínculo paquete-destino. Otra prueba
+reconstruyó la aplicación desde SQLite y comprobó el inicio de sesión con el hash almacenado, el precio
+publicado, el cupo y la reserva; también confirmó que una actualización de costo queda persistida.
+
+**Alcance:** esta integración cubre el criterio 2.1.3. No se incorporaron todavía manejo de errores de
+base de datos ni nuevas validaciones de entradas (criterio 2.1.4), ni consumo de APIs de la Unidad 3.

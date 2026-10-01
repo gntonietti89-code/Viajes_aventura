@@ -7,10 +7,60 @@ La base de datos se agrega en el criterio 2.1.3.
 from datetime import date, datetime
 from getpass import getpass
 
-from main import Administrador, Catalogo, Cliente, Destino
+from database import BaseDatos
+from main import Administrador, Catalogo, Cliente, Destino, Paquete, Reserva
 
 catalogo = Catalogo()
 usuarios = []  # Clientes y administradores registrados.
+base_datos = BaseDatos()
+
+
+def cargar_datos():
+    """Reconstruye el catálogo y sus relaciones desde SQLite."""
+    global catalogo, usuarios
+    catalogo = Catalogo()
+    usuarios = []
+    usuarios_por_id = {}
+    destinos_por_id = {}
+    paquetes_por_id = {}
+
+    for fila in base_datos.listar_usuarios():
+        if fila["rol"] == "cliente":
+            usuario = Cliente(fila["id"], fila["nombre"], fila["correo"], "", fila["rut"],
+                              fila["telefono"], fila["contrasena_hash"])
+        else:
+            usuario = Administrador(fila["id"], fila["nombre"], fila["correo"], "", catalogo,
+                                    fila["contrasena_hash"])
+        usuarios.append(usuario)
+        usuarios_por_id[fila["id"]] = usuario
+
+    for fila in base_datos.listar_destinos():
+        destino = Destino(fila["id"], fila["nombre"], fila["zona"], fila["descripcion"],
+                          fila["duracion_dias"], fila["costo_base"], bool(fila["disponible"]),
+                          date.fromisoformat(fila["fecha_actualizacion"]))
+        catalogo.registrarDestino(destino)
+        destinos_por_id[fila["id"]] = destino
+
+    for fila in base_datos.listar_paquetes():
+        destinos = [destinos_por_id[d["id"]]
+                    for d in base_datos.listar_destinos_de_paquete(fila["id"])]
+        paquete = Paquete(
+            fila["id"], fila["nombre"], date.fromisoformat(fila["fecha_salida"]),
+            date.fromisoformat(fila["fecha_regreso"]), fila["cupo_maximo"], fila["margen"],
+            destinos, fila["estado"], fila["precio_por_persona"],
+        )
+        catalogo.agregarPaquete(paquete)
+        paquetes_por_id[fila["id"]] = paquete
+
+    for fila in base_datos.listar_reservas():
+        cliente = usuarios_por_id[fila["cliente_id"]]
+        paquete = paquetes_por_id[fila["paquete_id"]]
+        reserva = Reserva(
+            fila["id"], date.fromisoformat(fila["fecha_emision"]), fila["cantidad_personas"],
+            fila["total_cobrado"], cliente, paquete, fila["estado"],
+        )
+        cliente.agregarReserva(reserva)
+        paquete.agregarReservaPersistida(reserva)
 
 
 # ---------- Ayudas para pedir datos ----------
@@ -90,7 +140,11 @@ def registrar_cliente():
     rut = pedir_texto("RUT: ")
     telefono = pedir_texto("Teléfono: ")
     clave = getpass("Contraseña: ")
-    usuarios.append(Cliente(None, nombre, correo, clave, rut, telefono))
+    cliente = Cliente(None, nombre, correo, clave, rut, telefono)
+    cliente.asignarId(base_datos.crear_usuario(
+        nombre, correo, cliente.getContrasenaHash(), "cliente", rut, telefono,
+    ))
+    usuarios.append(cliente)
     print("  Cliente registrado.")
 
 
@@ -119,6 +173,10 @@ def reservar(cliente):
     personas = pedir_entero("Cantidad de personas: ")
     try:
         reserva = paquete.reservar(cliente, personas, date.today())
+        reserva.asignarId(base_datos.crear_reserva(
+            reserva.getFechaEmision().isoformat(), reserva.getCantidadPersonas(), reserva.getTotal(),
+            reserva.getEstado(), cliente.getId(), paquete.getId(),
+        ))
         print(f"  Reserva creada. Total: {pesos(reserva.getTotal())} (estado: {reserva.getEstado()}).")
     except ValueError as error:
         print("  No se pudo reservar: " + str(error))
@@ -146,6 +204,10 @@ def registrar_destino():
     if destino.getCostoBase() <= 0:
         print("  El costo base debe ser mayor que cero.")
     elif catalogo.registrarDestino(destino):
+        destino.asignarId(base_datos.crear_destino(
+            destino.getNombre(), destino.getZona(), destino.getDescripcion(), destino.getDuracionDias(),
+            destino.getCostoBase(), destino.estaDisponible(), destino.getFechaActualizacion().isoformat(),
+        ))
         print("  Destino registrado.")
     else:
         print("  Ya existe un destino con ese nombre.")
@@ -156,7 +218,32 @@ def retirar_destino():
     destino = elegir(catalogo.listarDestinosDisponibles(), lambda d: d.getNombre())
     if destino:
         catalogo.retirarDestino(destino)
+        if destino.estaDisponible():
+            base_datos.eliminar_destino(destino.getId())
+        else:
+            guardar_destino(destino)
         print("  Destino retirado del catálogo.")
+
+
+def guardar_destino(destino):
+    base_datos.actualizar_destino(
+        destino.getId(), destino.getNombre(), destino.getZona(), destino.getDescripcion(),
+        destino.getDuracionDias(), destino.getCostoBase(), destino.estaDisponible(),
+        destino.getFechaActualizacion().isoformat(),
+    )
+
+
+def actualizar_costo_destino():
+    print("\nActualizar costo base")
+    destino = elegir(catalogo.listarDestinosDisponibles(), lambda d: d.getNombre())
+    if destino is None:
+        return
+    nuevo_costo = pedir_entero("Nuevo costo base por persona: ")
+    if destino.actualizarCostoBase(nuevo_costo):
+        guardar_destino(destino)
+        print("  Costo actualizado.")
+    else:
+        print("  El costo base debe ser mayor que cero.")
 
 
 def crear_paquete(admin):
@@ -167,6 +254,10 @@ def crear_paquete(admin):
     cupo = pedir_entero("Cupo máximo: ")
     margen = pedir_entero("Margen en % (ej. 20): ") / 100
     paquete = admin.crearPaquete(nombre, salida, regreso, cupo, margen)
+    paquete.asignarId(base_datos.crear_paquete(
+        paquete.getNombre(), paquete.getFechaSalida().isoformat(), paquete.getFechaRegreso().isoformat(),
+        paquete.getCupoMaximo(), paquete.getMargen(), paquete.getPrecioPorPersona(), paquete.getEstado(),
+    ))
     print("Elija de 2 a 5 destinos (0 para terminar):")
     while True:
         destino = elegir(catalogo.listarDestinosDisponibles(), lambda d: d.getNombre())
@@ -174,7 +265,20 @@ def crear_paquete(admin):
             break
         if not paquete.agregarDestino(destino):
             print("  No se pudo agregar (repetido o ya hay 5 destinos).")
+        else:
+            base_datos.vincular_destino_paquete(paquete.getId(), destino.getId(),
+                                                len(paquete.getDestinos()) - 1)
+    base_datos.actualizar_paquete(
+        paquete.getId(), paquete.getNombre(), paquete.getFechaSalida().isoformat(),
+        paquete.getFechaRegreso().isoformat(), paquete.getCupoMaximo(), paquete.getMargen(),
+        paquete.getPrecioPorPersona(), paquete.getEstado(),
+    )
     if paquete.publicar():
+        base_datos.actualizar_paquete(
+            paquete.getId(), paquete.getNombre(), paquete.getFechaSalida().isoformat(),
+            paquete.getFechaRegreso().isoformat(), paquete.getCupoMaximo(), paquete.getMargen(),
+            paquete.getPrecioPorPersona(), paquete.getEstado(),
+        )
         print(f"  Paquete publicado a {pesos(paquete.getPrecioPorPersona())} por persona.")
     else:
         print("  El paquete necesita al menos 2 destinos; quedó como borrador.")
@@ -201,8 +305,8 @@ def menu_cliente(cliente, sesion):
 def menu_administrador(admin, sesion):
     while True:
         print("\n--- Menú administrador ---")
-        print("1. Listar destinos\n2. Registrar destino\n3. Retirar destino\n"
-              "4. Crear paquete\n5. Ver paquetes vigentes\n0. Cerrar sesión")
+        print("1. Listar destinos\n2. Registrar destino\n3. Actualizar costo de destino\n"
+              "4. Retirar destino\n5. Crear paquete\n6. Ver paquetes vigentes\n0. Cerrar sesión")
         opcion = input("> ").strip()
         if opcion == "1":
             for d in catalogo.listarDestinosDisponibles():
@@ -210,10 +314,12 @@ def menu_administrador(admin, sesion):
         elif opcion == "2":
             registrar_destino()
         elif opcion == "3":
-            retirar_destino()
+            actualizar_costo_destino()
         elif opcion == "4":
-            crear_paquete(admin)
+            retirar_destino()
         elif opcion == "5":
+            crear_paquete(admin)
+        elif opcion == "6":
             ver_paquetes()
         elif opcion == "0":
             sesion.cerrar()
@@ -221,14 +327,20 @@ def menu_administrador(admin, sesion):
 
 
 def crear_administrador_inicial():
-    # No se guardan credenciales en el código: el administrador se crea al iniciar.
+    if any(isinstance(usuario, Administrador) for usuario in usuarios):
+        return
     print("Primera ejecución: cree la cuenta del administrador.")
-    usuarios.append(Administrador(None, pedir_texto("Nombre: "), pedir_texto("Correo: "),
-                                  getpass("Contraseña: "), catalogo))
+    admin = Administrador(None, pedir_texto("Nombre: "), pedir_texto("Correo: "),
+                          getpass("Contraseña: "), catalogo)
+    admin.asignarId(base_datos.crear_usuario(
+        admin.getNombre(), admin.getCorreo(), admin.getContrasenaHash(), "administrador",
+    ))
+    usuarios.append(admin)
 
 
 def iniciar():
     print("=== Viajes Aventura ===")
+    cargar_datos()
     crear_administrador_inicial()
     while True:
         print("\n--- Menú principal ---")
@@ -242,4 +354,5 @@ def iniciar():
             iniciar_sesion()
         elif opcion == "0":
             print("Hasta luego.")
+            base_datos.cerrar()
             return

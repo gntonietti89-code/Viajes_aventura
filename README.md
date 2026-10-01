@@ -12,7 +12,7 @@ aplicada al caso de Viajes Aventura (`caso 1 proyecto final.pdf`).
 |---|---|---|
 | 2.1.1 | Implementar el modelo UML en Python | Hecho |
 | 2.1.2 | Principios de POO | Hecho |
-| 2.1.3 | Conexión a base de datos (CRUD) | Pendiente |
+| 2.1.3 | Conexión a base de datos (CRUD) | Hecho |
 | 2.1.4 | Manejo de errores y validaciones | Pendiente |
 | 2.1.5 | Validación del código generado con IA | En curso ([validacion_ia.md](validacion_ia.md)) |
 
@@ -22,6 +22,7 @@ aplicada al caso de Viajes Aventura (`caso 1 proyecto final.pdf`).
 Viajes_aventura/
 ├── main.py            Clases del diagrama UML y punto de partida del programa
 ├── interface.py       Menú de consola (cliente y administrador)
+├── database.py        Conexión SQLite y operaciones CRUD
 ├── uml.png            Diagrama de clases UML oficial
 ├── validacion_ia.md   Registro del uso de IA
 ├── caso 1 proyecto final.pdf   Caso Viajes Aventura
@@ -35,9 +36,19 @@ Viajes_aventura/
 python main.py
 ```
 
-Al iniciar se crea la cuenta del administrador. Por ahora los datos solo existen mientras el programa
-está abierto.
+En la primera ejecución se crea la cuenta del administrador. Los usuarios, destinos, paquetes y
+reservas se guardan en `viajes_aventura.db`, junto al código, y se cargan al iniciar de nuevo el
+programa. La base de datos se crea automáticamente y está excluida del control de versiones.
+
+## Persistencia (2.1.3)
+
+`database.py` utiliza `sqlite3`, incluida en Python, con tablas relacionadas para usuarios, destinos,
+paquetes, destinos de cada paquete y reservas. La capa de datos ofrece operaciones de creación,
+consulta, actualización y eliminación; el menú permite registrar, consultar, actualizar el costo y
+retirar destinos, además de registrar usuarios, paquetes y reservas. Las asociaciones y claves
+foráneas conservan la relación entre registros. Las contraseñas persistidas siguen siendo hashes,
+no texto plano.
 
 ## Requisitos
 
-- Python 3 (probado con 3.14). Por ahora solo se usa la biblioteca estándar.
+- Python 3 (probado con 3.14). Se utiliza la biblioteca estándar, incluida `sqlite3`.

@@ -46,19 +46,28 @@ class Sesion:
 class Usuario:
     """Clase padre de Cliente y Administrador."""
 
-    def __init__(self, id, nombre, correo, clave):
+    def __init__(self, id, nombre, correo, clave, contrasenaHash=None):
         self.__id = id
         self.__nombre = nombre
         self.__correo = correo
         # R10: la contraseña nunca se guarda tal como se escribió.
-        self.__contrasenaHash = self.__hashear(clave)
+        self.__contrasenaHash = contrasenaHash or self.__hashear(clave)
         self.__sesiones = []
+
+    def getId(self):
+        return self.__id
+
+    def asignarId(self, id):
+        self.__id = id
 
     def getNombre(self) -> str:
         return self.__nombre
 
     def getCorreo(self) -> str:
         return self.__correo
+
+    def getContrasenaHash(self) -> str:
+        return self.__contrasenaHash
 
     def verificarContrasena(self, clave: str) -> bool:
         sal_hex, hash_guardado = self.__contrasenaHash.split("$")
@@ -85,12 +94,18 @@ class Usuario:
 class Cliente(Usuario):
     """Hereda de Usuario."""
 
-    def __init__(self, id, nombre, correo, clave, rut, telefono):
-        super().__init__(id, nombre, correo, clave)
+    def __init__(self, id, nombre, correo, clave, rut, telefono, contrasenaHash=None):
+        super().__init__(id, nombre, correo, clave, contrasenaHash)
         self.__rut = rut
         self.__telefono = telefono
         # Composición: Cliente 1 -> 0..* Reserva ("realiza").
         self.__reservas = []
+
+    def getRut(self) -> str:
+        return self.__rut
+
+    def getTelefono(self) -> str:
+        return self.__telefono
 
     def getRutEnmascarado(self) -> str:
         return self.__enmascarar(self.__rut)
@@ -116,21 +131,40 @@ class Cliente(Usuario):
 
 class Destino:
 
-    def __init__(self, id, nombre, zona, descripcion, duracionDias, costoBase):
+    def __init__(self, id, nombre, zona, descripcion, duracionDias, costoBase, disponible=True,
+                 fechaActualizacion=None):
         self.__id = id
         self.__nombre = nombre
         self.__zona = zona
         self.__descripcion = descripcion
         self.__duracionDias = duracionDias
         self.__costoBase = costoBase
-        self.__disponible = True
-        self.__fechaActualizacion = date.today()
+        self.__disponible = disponible
+        self.__fechaActualizacion = fechaActualizacion or date.today()
+
+    def getId(self):
+        return self.__id
+
+    def asignarId(self, id):
+        self.__id = id
 
     def getNombre(self) -> str:
         return self.__nombre
 
+    def getZona(self) -> str:
+        return self.__zona
+
+    def getDescripcion(self) -> str:
+        return self.__descripcion
+
+    def getDuracionDias(self) -> int:
+        return self.__duracionDias
+
     def getCostoBase(self) -> int:
         return self.__costoBase
+
+    def getFechaActualizacion(self) -> date:
+        return self.__fechaActualizacion
 
     def actualizarCostoBase(self, nuevoCosto: int) -> bool:
         # R2: el costo base siempre es mayor que cero.
@@ -150,16 +184,28 @@ class Destino:
 class Reserva:
     """Una reserva corresponde a un cliente y a un paquete (R12)."""
 
-    def __init__(self, id, fechaEmision, cantidadPersonas, totalCobrado, cliente, paquete):
+    def __init__(self, id, fechaEmision, cantidadPersonas, totalCobrado, cliente, paquete, estado=PENDIENTE):
         self.__id = id
         self.__fechaEmision = fechaEmision
         self.__cantidadPersonas = cantidadPersonas
         # R13: el total se fija al reservar y no tiene método para cambiarlo.
         self.__totalCobrado = totalCobrado
-        self.__estado = PENDIENTE
+        self.__estado = estado
         self.__cliente = cliente
         # Asociación: Reserva 0..* -> 1 Paquete ("es sobre").
         self.__paquete = paquete
+
+    def getId(self):
+        return self.__id
+
+    def asignarId(self, id):
+        self.__id = id
+
+    def getFechaEmision(self):
+        return self.__fechaEmision
+
+    def getCliente(self):
+        return self.__cliente
 
     def getTotal(self) -> int:
         return self.__totalCobrado
@@ -185,7 +231,8 @@ class Reserva:
 
 class Paquete:
 
-    def __init__(self, id, nombre, fechaSalida, fechaRegreso, cupoMaximo, margen):
+    def __init__(self, id, nombre, fechaSalida, fechaRegreso, cupoMaximo, margen,
+                 destinos=None, estado=BORRADOR, precioPorPersona=0):
         self.__id = id
         self.__nombre = nombre
         self.__fechaSalida = fechaSalida
@@ -193,12 +240,18 @@ class Paquete:
         self.__cupoMaximo = cupoMaximo
         # Margen como fracción: 0.20 equivale a 20 % (R6).
         self.__margen = margen
-        self.__precioPorPersona = 0
-        self.__estado = BORRADOR
+        self.__precioPorPersona = precioPorPersona
+        self.__estado = estado
         # Agregación: Paquete 0..* -> 2..5 Destino ("combina").
-        self.__destinos = []
+        self.__destinos = list(destinos) if destinos else []
         # Lado Paquete de la asociación con Reserva ("es sobre").
         self.__reservas = []
+
+    def getId(self):
+        return self.__id
+
+    def asignarId(self, id):
+        self.__id = id
 
     def getNombre(self) -> str:
         # No está en el UML: la interfaz lo usa para listar los paquetes.
@@ -207,6 +260,24 @@ class Paquete:
     def getFechaSalida(self) -> date:
         # No está en el UML: la interfaz lo usa para listar los paquetes.
         return self.__fechaSalida
+
+    def getFechaRegreso(self) -> date:
+        return self.__fechaRegreso
+
+    def getCupoMaximo(self) -> int:
+        return self.__cupoMaximo
+
+    def getMargen(self) -> float:
+        return self.__margen
+
+    def getEstado(self) -> str:
+        return self.__estado
+
+    def getDestinos(self) -> list:
+        return list(self.__destinos)
+
+    def agregarReservaPersistida(self, reserva) -> None:
+        self.__reservas.append(reserva)
 
     def agregarDestino(self, destino) -> bool:
         # R3: de 2 a 5 destinos, sin repetir. R8: solo destinos disponibles.
@@ -299,8 +370,8 @@ class Catalogo:
 class Administrador(Usuario):
     """Hereda de Usuario."""
 
-    def __init__(self, id, nombre, correo, clave, catalogo):
-        super().__init__(id, nombre, correo, clave)
+    def __init__(self, id, nombre, correo, clave, catalogo, contrasenaHash=None):
+        super().__init__(id, nombre, correo, clave, contrasenaHash)
         # Asociación: Administrador 1..* -> 1 Catalogo ("mantiene").
         self.__catalogo = catalogo
 
