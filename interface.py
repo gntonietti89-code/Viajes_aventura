@@ -3,7 +3,7 @@
 Los datos se guardan en SQLite (database.py) y se cargan al iniciar el programa.
 """
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 import re
 import sqlite3
 import sys
@@ -11,6 +11,7 @@ import unicodedata
 
 import requests
 
+from cifrado import ErrorCifrado
 from database import BaseDatos
 from main import Administrador, Catalogo, Cliente, Destino, Paquete, Reserva
 from servicios_externos import ServicioCambio, ServicioClima
@@ -90,6 +91,11 @@ DURACION_MAX = 60
 CUPO_MAX = 100
 MARGEN_MAX = 100
 
+# Bloqueo por intentos fallidos de inicio de sesión (3.1.2).
+MAX_INTENTOS = 3
+TIEMPO_BLOQUEO = timedelta(minutes=1)
+intentos_fallidos = {}  # correo -> (intentos, bloqueado_hasta)
+
 
 def limpiar_texto(texto):
     """Quita caracteres de control (p. ej. códigos ANSI), une espacios repetidos y normaliza acentos."""
@@ -109,6 +115,13 @@ def validar_rut(texto):
     suma = sum(int(d) * f for d, f in zip(reversed(cuerpo), [2, 3, 4, 5, 6, 7] * 2))
     esperado = {10: "K", 11: "0"}.get(11 - suma % 11, str(11 - suma % 11))
     return f"{cuerpo}-{dv}" if dv == esperado else None
+
+
+def validar_ciudad(texto):
+    """3.1.2: solo letras (con tildes), espacios, guiones y apóstrofes, de 2 a 60 caracteres."""
+    if re.fullmatch(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ' -]{2,60}", texto) and re.search(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]", texto):
+        return texto
+    return None
 
 
 def validar_telefono(texto):
@@ -234,6 +247,14 @@ def pedir_telefono(mensaje="Teléfono (ej. +56912345678): "):
         if telefono:
             return telefono
         print("  Teléfono no válido. Escríbalo sin espacios, ej. +56912345678")
+
+
+def pedir_ciudad(mensaje="Ciudad más cercana (ej. Vicuña): "):
+    while True:
+        ciudad = validar_ciudad(pedir_texto(mensaje, 60))
+        if ciudad:
+            return ciudad
+        print("  Escriba solo el nombre de la ciudad: letras, espacios o guiones.")
 
 
 def pedir_entero(mensaje, minimo=0, maximo=None):
@@ -372,13 +393,19 @@ def registrar_cliente():
 def iniciar_sesion():
     print("\nInicio de sesión")
     correo = pedir_correo()
+    espera = segundos_de_bloqueo(correo)
+    if espera:
+        print(f"  Demasiados intentos fallidos. Espere {espera} segundos e intente de nuevo.")
+        return
     clave = pedir_clave(validar_largo=False)
     usuario = buscar_usuario(correo)
     sesion = usuario.iniciarSesion(clave) if usuario else None
     if sesion is None:
         # Mismo mensaje en ambos casos: no se revela si el correo existe.
         print("  Correo o contraseña incorrectos.")
+        registrar_intento_fallido(correo)
         return
+    intentos_fallidos.pop(correo, None)
     print(f"  Bienvenido/a, {usuario.getNombre()}.")
     if isinstance(usuario, Administrador):
         menu_administrador(usuario, sesion)
@@ -386,11 +413,40 @@ def iniciar_sesion():
         menu_cliente(usuario, sesion)
 
 
+def segundos_de_bloqueo(correo):
+    """Segundos que faltan para que el correo pueda volver a intentar; 0 si no está bloqueado."""
+    _cantidad, bloqueado_hasta = intentos_fallidos.get(correo, (0, None))
+    if bloqueado_hasta is None:
+        return 0
+    restante = (bloqueado_hasta - datetime.now()).total_seconds()
+    if restante <= 0:
+        intentos_fallidos.pop(correo, None)
+        return 0
+    return int(restante) + 1
+
+
+def registrar_intento_fallido(correo):
+    # Se cuenta por correo escrito, exista o no, para no revelar qué correos están registrados.
+    cantidad = intentos_fallidos.get(correo, (0, None))[0] + 1
+    if cantidad >= MAX_INTENTOS:
+        intentos_fallidos[correo] = (cantidad, datetime.now() + TIEMPO_BLOQUEO)
+        print(f"  Se bloqueó el acceso con ese correo por {int(TIEMPO_BLOQUEO.total_seconds())} segundos.")
+    else:
+        intentos_fallidos[correo] = (cantidad, None)
+
+
+def sesion_vigente(sesion, usuario):
+    """R11 y 3.1.2: la sesión no está cerrada, no expiró y pertenece a quien la usa."""
+    if sesion.esValida(datetime.now()) and sesion.getUsuario() is usuario:
+        return True
+    print("  Su sesión expiró. Inicie sesión de nuevo.")
+    return False
+
+
 def reservar(cliente, sesion):
     print("\nReservar paquete")
     # R11: solo un cliente con sesión vigente puede reservar.
-    if not sesion.esValida(datetime.now()) or sesion.getUsuario() is not cliente:
-        print("  Su sesión expiró. Inicie sesión de nuevo.")
+    if not sesion_vigente(sesion, cliente):
         return FINALIZAR_MENU
     paquete = elegir(catalogo.listarPaquetesVigentes(date.today()), describir_paquete)
     if paquete is None:
@@ -555,8 +611,8 @@ def menu_cliente(cliente, sesion):
         "1": ("Ver paquetes vigentes", ver_paquetes, ()),
         "2": ("Reservar", reservar, (cliente, sesion)),
         "3": ("Mis reservas", ver_mis_reservas, (cliente, sesion)),
-        "4": ("Ver clima de un destino", ver_clima_destino, ()),
-        "5": ("Ver precio de un paquete en dólares o euros", ver_precio_en_moneda, ()),
+        "4": ("Ver clima de un destino", ver_clima_destino, (cliente, sesion)),
+        "5": ("Ver precio de un paquete en dólares o euros", ver_precio_en_moneda, (cliente, sesion)),
         "6": ("Cerrar sesión", cerrar_sesion_cliente, ()),
     }
     ejecutar_menu("Menú cliente", opciones, "Cerrar sesión y volver")
@@ -576,7 +632,7 @@ def menu_administrador(admin, sesion):
         "4": ("Retirar destino", retirar_destino, ()),
         "5": ("Crear paquete", crear_paquete, (admin,)),
         "6": ("Ver paquetes vigentes", ver_paquetes, ()),
-        "7": ("Ver clima de un destino", ver_clima_destino, ()),
+        "7": ("Ver clima de un destino", ver_clima_destino, (admin, sesion)),
     }
     ejecutar_menu("Menú administrador", opciones, "Cerrar sesión y volver")
     sesion.cerrar()
@@ -589,8 +645,11 @@ def listar_destinos():
 
 # ---------- Servicios externos (Unidad 3) ----------
 
-def ver_clima_destino():
+def ver_clima_destino(usuario, sesion):
     print("\nClima actual de un destino")
+    # 3.1.2: solo un usuario con sesión vigente consulta servicios externos.
+    if not sesion_vigente(sesion, usuario):
+        return FINALIZAR_MENU
     destino = elegir(catalogo.listarDestinosDisponibles(), lambda d: f"{d.getNombre()} ({d.getZona()})")
     if destino is None:
         return
@@ -599,7 +658,7 @@ def ver_clima_destino():
         if ubicacion is None:
             # Algunos destinos son zonas o parques, no ciudades: se usa la ciudad más cercana.
             print(f"  No se encontró «{destino.getNombre()}» en el mapa.")
-            ubicacion = servicio_clima.buscarUbicacion(pedir_texto("Ciudad más cercana (ej. Vicuña): ", 60))
+            ubicacion = servicio_clima.buscarUbicacion(pedir_ciudad())
             if ubicacion is None:
                 print("  Tampoco se encontró esa ciudad en Chile.")
                 return
@@ -612,8 +671,11 @@ def ver_clima_destino():
     print(f"  {clima['estado']} · {clima['temperatura']:.1f} °C · humedad {clima['humedad']} %")
 
 
-def ver_precio_en_moneda():
+def ver_precio_en_moneda(cliente, sesion):
     print("\nPrecio de un paquete en moneda extranjera")
+    # 3.1.2: solo un usuario con sesión vigente consulta servicios externos.
+    if not sesion_vigente(sesion, cliente):
+        return FINALIZAR_MENU
     paquete = elegir(catalogo.listarPaquetesVigentes(date.today()), describir_paquete)
     if paquete is None:
         return
@@ -669,6 +731,9 @@ def iniciar():
         print("Configuración inicial cancelada. Puede volver a ejecutar el programa.")
     except sqlite3.Error:
         print("No se pudo iniciar o consultar la base de datos. Revise el almacenamiento e intente de nuevo.")
+    except ErrorCifrado:
+        # No se muestra la llave ni el detalle del error.
+        print("No se pudieron leer los datos protegidos. Revise que el archivo .env tenga la llave correcta.")
     except (OSError, OverflowError, ValueError, KeyError, TypeError):
         print("No se pudo acceder a la base de datos local.")
     finally:

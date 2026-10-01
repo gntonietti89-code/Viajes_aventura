@@ -3,17 +3,22 @@
 import sqlite3
 from pathlib import Path
 
+from cifrado import Cifrador
+
 
 class BaseDatos:
     """Conexión y operaciones CRUD para las entidades del sistema."""
 
-    def __init__(self, ruta=None):
+    def __init__(self, ruta=None, cifrador=None):
         self.__ruta = Path(ruta) if ruta else Path(__file__).with_name("viajes_aventura.db")
+        # El RUT y el teléfono (R17) se guardan cifrados; la llave viene de .env, no del código.
+        self.__cifrador = cifrador or Cifrador.desdeEntorno()
         self.__conexion = sqlite3.connect(self.__ruta)
         self.__conexion.row_factory = sqlite3.Row
         try:
             self.__conexion.execute("PRAGMA foreign_keys = ON")
             self.__crear_tablas()
+            self.__cifrar_datos_antiguos()
         except sqlite3.Error:
             self.__conexion.close()
             raise
@@ -69,6 +74,22 @@ class BaseDatos:
         )
         self.__conexion.commit()
 
+    def __cifrar_datos_antiguos(self):
+        """Cifra el RUT y el teléfono de los clientes guardados antes de que existiera el cifrado."""
+        filas = self.__conexion.execute(
+            "SELECT id, rut, telefono FROM usuarios WHERE rut IS NOT NULL OR telefono IS NOT NULL"
+        ).fetchall()
+        with self.__conexion:
+            for fila in filas:
+                if Cifrador.estaCifrado(fila["rut"]) and Cifrador.estaCifrado(fila["telefono"]):
+                    continue
+                rut = fila["rut"] if Cifrador.estaCifrado(fila["rut"]) else self.__cifrador.cifrar(fila["rut"])
+                telefono = (fila["telefono"] if Cifrador.estaCifrado(fila["telefono"])
+                            else self.__cifrador.cifrar(fila["telefono"]))
+                self.__conexion.execute(
+                    "UPDATE usuarios SET rut=?, telefono=? WHERE id=?", (rut, telefono, fila["id"])
+                )
+
     @staticmethod
     def __filas(cursor):
         return [dict(fila) for fila in cursor.fetchall()]
@@ -81,19 +102,25 @@ class BaseDatos:
             cursor = self.__conexion.execute(
                 "INSERT INTO usuarios (nombre, correo, contrasena_hash, rol, rut, telefono) "
                 "VALUES (?, ?, ?, ?, ?, ?)",
-                (nombre, correo, contrasena_hash, rol, rut, telefono),
+                (nombre, correo, contrasena_hash, rol,
+                 self.__cifrador.cifrar(rut), self.__cifrador.cifrar(telefono)),
             )
         return cursor.lastrowid
 
     def listar_usuarios(self):
-        return self.__filas(self.__conexion.execute("SELECT * FROM usuarios ORDER BY id"))
+        usuarios = self.__filas(self.__conexion.execute("SELECT * FROM usuarios ORDER BY id"))
+        for usuario in usuarios:
+            usuario["rut"] = self.__cifrador.descifrar(usuario["rut"])
+            usuario["telefono"] = self.__cifrador.descifrar(usuario["telefono"])
+        return usuarios
 
     def actualizar_usuario(self, id_usuario, nombre, correo, contrasena_hash, rol, rut=None, telefono=None):
         with self.__conexion:
             cursor = self.__conexion.execute(
                 "UPDATE usuarios SET nombre=?, correo=?, contrasena_hash=?, rol=?, rut=?, telefono=? "
                 "WHERE id=?",
-                (nombre, correo, contrasena_hash, rol, rut, telefono, id_usuario),
+                (nombre, correo, contrasena_hash, rol,
+                 self.__cifrador.cifrar(rut), self.__cifrador.cifrar(telefono), id_usuario),
             )
         return cursor.rowcount
 

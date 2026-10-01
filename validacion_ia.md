@@ -193,3 +193,25 @@ destino no se encuentra, el programa pide la ciudad más cercana (por ejemplo, V
 las APIs reales: San Pedro de Atacama, Valle del Elqui con Vicuña, una ciudad inexistente, Norte
 Mágico en USD y Gran Chile en EUR. Sin conexión, se muestra un aviso y el programa sigue funcionando.
 
+## 3.1.2 — Mecanismos básicos de seguridad
+
+**Qué se pidió:** inicio de sesión con credenciales encriptadas, validar credenciales y los datos
+enviados a la API, controlar datos sensibles y llaves, y que solo usuarios autenticados usen las
+funciones.
+
+**Resultado:** el hash PBKDF2 de las contraseñas ya existía. Se agregó:
+- Bloqueo de 1 minuto tras 3 intentos fallidos por correo, contado aunque el correo no exista, para
+  no revelar cuáles están registrados.
+- `cifrado.py`: el RUT y el teléfono se guardan cifrados con Fernet (librería `cryptography`). La
+  llave se lee de `.env` con `python-dotenv` y nunca está en el código ni en el repositorio. Si la
+  llave no corresponde, se muestra un mensaje genérico, sin la llave ni el detalle del error.
+- Validación de la ciudad antes de enviarla a la API (solo letras, espacios, guiones y apóstrofes).
+- Las opciones de clima y tipo de cambio revisan que la sesión siga vigente, igual que "Reservar".
+
+Se descartó usar OpenWeatherMap con llave: el cifrado ya obliga a manejar una llave secreta en
+`.env`, y además protege los datos sensibles que preocupaban en el caso (Ignacio Salas). Se probó en
+una copia: los clientes existentes se cifraron al abrir el programa y se siguen leyendo bien; un
+cliente nuevo queda cifrado; con una llave equivocada aparece el mensaje genérico; el cuarto intento
+tras 3 fallos queda bloqueado; `<script>`, `12345` y `Vicuña;DROP TABLE` se rechazan como ciudad; y
+el clima y el tipo de cambio con una sesión vencida vuelven al menú principal.
+

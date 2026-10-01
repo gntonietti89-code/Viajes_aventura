@@ -16,6 +16,7 @@ aplicada al caso de Viajes Aventura (`caso 1 proyecto final.pdf`).
 | 2.1.4 | Manejo de errores y validaciones | Hecho |
 | 2.1.5 | Validación del código generado con IA | Hecho ([validacion_ia.md](validacion_ia.md)) |
 | 3.1.1 | Consumo de servicios externos (APIs) | Hecho |
+| 3.1.2 | Mecanismos básicos de seguridad | Hecho |
 
 ## Estructura
 
@@ -24,9 +25,10 @@ Viajes_aventura/
 ├── main.py            Clases del diagrama UML y punto de partida del programa
 ├── interface.py       Menú de consola (cliente y administrador)
 ├── database.py        Conexión SQLite y operaciones CRUD
+├── cifrado.py         Cifrado del RUT y el teléfono (Fernet); llave en .env
 ├── servicios_externos.py  Consumo de APIs: clima (Open-Meteo) y tipo de cambio (mindicador.cl)
 ├── datos_prueba.py    Carga clientes, destinos, paquetes y reservas de prueba
-├── requirements.txt   Librerías externas (requests)
+├── requirements.txt   Librerías externas (requests, cryptography, python-dotenv)
 ├── uml.png            Diagrama de clases UML oficial
 ├── validacion_ia.md   Registro del uso de IA
 ├── caso 1 proyecto final.pdf   Caso Viajes Aventura
@@ -92,9 +94,28 @@ Del JSON se toman solo los datos útiles y se comprueba que tengan sentido (que 
 rango válido) antes de mostrarlos. Las consultas están en el menú del cliente (opciones 4 y 5) y la de
 clima también en el del administrador (opción 7), así que solo se usan después de iniciar sesión.
 
+## Seguridad (3.1.2)
+
+- **Contraseñas:** se guardan como hash PBKDF2-SHA256 con sal, nunca en texto plano (R10).
+- **Bloqueo por intentos:** tras 3 intentos fallidos con un mismo correo, ese correo no puede
+  iniciar sesión por 1 minuto. Se cuenta igual si el correo no existe, para no revelar cuáles están
+  registrados.
+- **RUT y teléfono cifrados (R17):** `cifrado.py` los cifra con Fernet antes de guardarlos en
+  SQLite y los descifra al cargar. Los clientes guardados antes del cifrado se cifran solos al abrir
+  el programa.
+- **Llave fuera del código:** la llave de cifrado está en el archivo `.env` (variable
+  `VIAJES_CLAVE_CIFRADO`), que está en `.gitignore`. Si no existe, se crea la primera vez. **Si se
+  pierde el `.env`, los RUT y teléfonos guardados no se pueden recuperar**, así que hay que
+  respaldarlo junto con la base de datos.
+- **Validación de datos para la API:** la ciudad solo acepta letras, espacios, guiones y
+  apóstrofes (2 a 60 caracteres); la moneda se elige de una lista.
+- **Solo usuarios autenticados:** las consultas de clima y tipo de cambio están en los menús con
+  sesión iniciada y revisan que la sesión no haya expirado.
+
 ## Requisitos
 
 - Python 3 (probado con 3.14). Se utiliza la biblioteca estándar, incluida `sqlite3`.
-- `requests` (PyPI) para consumir las APIs; se instala con `pip install -r requirements.txt`.
+- Librerías de PyPI: `requests` (APIs), `cryptography` (cifrado) y `python-dotenv` (lee `.env`). Se
+  instalan con `pip install -r requirements.txt`.
 - Conexión a internet para consultar el clima y el tipo de cambio. Sin conexión, el resto del
   programa funciona igual.
