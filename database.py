@@ -11,8 +11,12 @@ class BaseDatos:
         self.__ruta = Path(ruta) if ruta else Path(__file__).with_name("viajes_aventura.db")
         self.__conexion = sqlite3.connect(self.__ruta)
         self.__conexion.row_factory = sqlite3.Row
-        self.__conexion.execute("PRAGMA foreign_keys = ON")
-        self.__crear_tablas()
+        try:
+            self.__conexion.execute("PRAGMA foreign_keys = ON")
+            self.__crear_tablas()
+        except sqlite3.Error:
+            self.__conexion.close()
+            raise
 
     def __crear_tablas(self):
         self.__conexion.executescript(

@@ -59,5 +59,22 @@ eliminación de usuarios, destinos, paquetes y reservas, además del vínculo pa
 reconstruyó la aplicación desde SQLite y comprobó el inicio de sesión con el hash almacenado, el precio
 publicado, el cupo y la reserva; también confirmó que una actualización de costo queda persistida.
 
-**Alcance:** esta integración cubre el criterio 2.1.3. No se incorporaron todavía manejo de errores de
-base de datos ni nuevas validaciones de entradas (criterio 2.1.4), ni consumo de APIs de la Unidad 3.
+**Alcance en esa etapa:** la integración cubría el criterio 2.1.3; en ese momento aún faltaban el
+manejo de errores de base de datos y las validaciones del criterio 2.1.4. No se abordó el consumo de
+APIs de la Unidad 3.
+
+## 2.1.4 — Manejo de errores y validaciones
+
+**Qué se pidió:** controlar excepciones para proteger la estabilidad del programa y validar los datos
+ingresados antes de usarlos.
+
+**Resultado:** en `interface.py` se agregaron validaciones para campos obligatorios, formato de correo,
+contraseñas no vacías, enteros dentro de los mínimos permitidos, opciones dentro del rango y fechas
+coherentes para los paquetes. Se incorporó manejo de errores SQLite y de acceso al almacenamiento con
+mensajes controlados que no exponen detalles internos; la conexión se cierra también si falla el inicio.
+Si falla la persistencia de una reserva, destino o paquete, se revierte el cambio en memoria cuando es
+posible. GitHub Copilot ayudó a identificar los puntos que requerían controles y se revisó el resultado.
+Se comprobó con `py_compile`, Pylance y pruebas manuales: entradas inválidas se vuelven a solicitar,
+errores inducidos no interrumpen el menú ni dejan reservas o destinos fallidos en memoria, y un flujo
+válido permite crear un paquete, reservar y recargar los datos desde SQLite. El trabajo se limita al
+criterio 2.1.4; no incluye consumo de APIs de la Unidad 3.

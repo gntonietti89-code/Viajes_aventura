@@ -13,7 +13,7 @@ aplicada al caso de Viajes Aventura (`caso 1 proyecto final.pdf`).
 | 2.1.1 | Implementar el modelo UML en Python | Hecho |
 | 2.1.2 | Principios de POO | Hecho |
 | 2.1.3 | Conexión a base de datos (CRUD) | Hecho |
-| 2.1.4 | Manejo de errores y validaciones | Pendiente |
+| 2.1.4 | Manejo de errores y validaciones | Hecho |
 | 2.1.5 | Validación del código generado con IA | En curso ([validacion_ia.md](validacion_ia.md)) |
 
 ## Estructura
@@ -48,6 +48,15 @@ consulta, actualización y eliminación; el menú permite registrar, consultar, 
 retirar destinos, además de registrar usuarios, paquetes y reservas. Las asociaciones y claves
 foráneas conservan la relación entre registros. Las contraseñas persistidas siguen siendo hashes,
 no texto plano.
+
+## Validaciones y manejo de errores (2.1.4)
+
+El menú valida campos de texto, formato de correo, contraseña no vacía, enteros y rangos permitidos.
+También comprueba que la salida de un paquete sea posterior a hoy y que el regreso sea posterior a la
+salida, y vuelve a pedir selecciones fuera de rango. Los fallos de SQLite o del almacenamiento se
+presentan con mensajes controlados, sin mostrar detalles internos; la conexión se cierra al terminar
+o si falla el inicio. Si falla una escritura de reserva o paquete, se evita conservar la operación
+fallida en el estado en memoria.
 
 ## Requisitos
 

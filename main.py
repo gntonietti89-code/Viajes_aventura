@@ -116,6 +116,10 @@ class Cliente(Usuario):
     def agregarReserva(self, reserva) -> None:
         self.__reservas.append(reserva)
 
+    def quitarReserva(self, reserva) -> None:
+        if reserva in self.__reservas:
+            self.__reservas.remove(reserva)
+
     def listarMisReservas(self, sesion) -> list:
         # R11: solo un cliente autenticado ve sus reservas, y únicamente las suyas.
         if not sesion.esValida(datetime.now()) or sesion.getUsuario() is not self:
@@ -279,6 +283,10 @@ class Paquete:
     def agregarReservaPersistida(self, reserva) -> None:
         self.__reservas.append(reserva)
 
+    def quitarReservaPersistida(self, reserva) -> None:
+        if reserva in self.__reservas:
+            self.__reservas.remove(reserva)
+
     def agregarDestino(self, destino) -> bool:
         # R3: de 2 a 5 destinos, sin repetir. R8: solo destinos disponibles.
         # Un paquete publicado ya no cambia sus destinos (R7).
@@ -293,6 +301,9 @@ class Paquete:
     def contieneDestino(self, destino) -> bool:
         # No está en el UML: Catalogo lo necesita para saber si puede eliminar un destino (R8).
         return destino in self.__destinos
+
+    def quitarReservaNoPersistida(self, reserva) -> None:
+        self.quitarReservaPersistida(reserva)
 
     def publicar(self) -> bool:
         if self.__estado != BORRADOR or len(self.__destinos) < MIN_DESTINOS:
@@ -362,6 +373,13 @@ class Catalogo:
 
     def agregarPaquete(self, paquete) -> None:
         self.__paquetes.append(paquete)
+
+    def retirarPaquete(self, paquete) -> None:
+        if paquete in self.__paquetes:
+            self.__paquetes.remove(paquete)
+
+    def destinoIncluidoEnPaquete(self, destino) -> bool:
+        return any(paquete.contieneDestino(destino) for paquete in self.__paquetes)
 
     def listarPaquetesVigentes(self, hoy) -> list:
         return [p for p in self.__paquetes if p.estaVigente(hoy)]

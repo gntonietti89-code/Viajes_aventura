@@ -6,13 +6,15 @@ La base de datos se agrega en el criterio 2.1.3.
 
 from datetime import date, datetime
 from getpass import getpass
+import re
+import sqlite3
 
 from database import BaseDatos
 from main import Administrador, Catalogo, Cliente, Destino, Paquete, Reserva
 
 catalogo = Catalogo()
 usuarios = []  # Clientes y administradores registrados.
-base_datos = BaseDatos()
+base_datos = None
 
 
 def cargar_datos():
@@ -72,11 +74,37 @@ def pedir_texto(mensaje):
     return texto
 
 
-def pedir_entero(mensaje):
+def pedir_correo(mensaje="Correo: "):
+    while True:
+        correo = pedir_texto(mensaje)
+        if re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", correo):
+            return correo
+        print("  Ingrese un correo con formato válido.")
+
+
+def pedir_clave(mensaje="Contraseña: "):
+    while True:
+        clave = getpass(mensaje)
+        if clave.strip():
+            return clave
+        print("  La contraseña no puede quedar vacía.")
+
+
+def pedir_entero(mensaje, minimo=0):
     texto = input(mensaje).strip()
-    while not texto.isdigit():
-        texto = input("  Debe ser un número entero. " + mensaje).strip()
-    return int(texto)
+    while True:
+        if texto.isdecimal():
+            try:
+                valor = int(texto)
+            except ValueError:
+                print("  El número ingresado es demasiado largo.")
+            else:
+                if valor >= minimo:
+                    return valor
+                print(f"  El valor debe ser mayor o igual que {minimo}.")
+        else:
+            print("  Debe ingresar un número entero no negativo.")
+        texto = input("  " + mensaje).strip()
 
 
 def pedir_fecha(mensaje):
@@ -88,6 +116,16 @@ def pedir_fecha(mensaje):
             print("  Fecha no válida.")
 
 
+def ejecutar_accion(accion, *args):
+    """Evita que un fallo de almacenamiento cierre el menú y oculta detalles internos."""
+    try:
+        return accion(*args)
+    except sqlite3.Error:
+        print("  No se pudo completar la operación por un problema de almacenamiento.")
+    except (OSError, OverflowError):
+        print("  No se pudo acceder al almacenamiento local.")
+
+
 def elegir(lista, describir):
     """Muestra una lista numerada y devuelve el elemento elegido, o None si se cancela."""
     if not lista:
@@ -95,10 +133,13 @@ def elegir(lista, describir):
         return None
     for i, elemento in enumerate(lista, start=1):
         print(f"  {i}. {describir(elemento)}")
-    opcion = pedir_entero("  Elija un número (0 para cancelar): ")
-    if 1 <= opcion <= len(lista):
-        return lista[opcion - 1]
-    return None
+    while True:
+        opcion = pedir_entero("  Elija un número (0 para cancelar): ")
+        if opcion == 0:
+            return None
+        if 1 <= opcion <= len(lista):
+            return lista[opcion - 1]
+        print("  Selección fuera de rango.")
 
 
 def pesos(monto):
@@ -131,7 +172,7 @@ def ver_paquetes():
 
 def registrar_cliente():
     print("\nRegistro de cliente")
-    correo = pedir_texto("Correo: ")
+    correo = pedir_correo()
     # R9: el correo identifica al cliente y no se repite.
     if buscar_usuario(correo):
         print("  Ese correo ya está registrado.")
@@ -139,7 +180,7 @@ def registrar_cliente():
     nombre = pedir_texto("Nombre: ")
     rut = pedir_texto("RUT: ")
     telefono = pedir_texto("Teléfono: ")
-    clave = getpass("Contraseña: ")
+    clave = pedir_clave()
     cliente = Cliente(None, nombre, correo, clave, rut, telefono)
     cliente.asignarId(base_datos.crear_usuario(
         nombre, correo, cliente.getContrasenaHash(), "cliente", rut, telefono,
@@ -150,8 +191,8 @@ def registrar_cliente():
 
 def iniciar_sesion():
     print("\nInicio de sesión")
-    correo = pedir_texto("Correo: ")
-    clave = getpass("Contraseña: ")
+    correo = pedir_correo()
+    clave = pedir_clave()
     usuario = buscar_usuario(correo)
     sesion = usuario.iniciarSesion(clave) if usuario else None
     if sesion is None:
@@ -173,10 +214,15 @@ def reservar(cliente):
     personas = pedir_entero("Cantidad de personas: ")
     try:
         reserva = paquete.reservar(cliente, personas, date.today())
-        reserva.asignarId(base_datos.crear_reserva(
-            reserva.getFechaEmision().isoformat(), reserva.getCantidadPersonas(), reserva.getTotal(),
-            reserva.getEstado(), cliente.getId(), paquete.getId(),
-        ))
+        try:
+            reserva.asignarId(base_datos.crear_reserva(
+                reserva.getFechaEmision().isoformat(), reserva.getCantidadPersonas(), reserva.getTotal(),
+                reserva.getEstado(), cliente.getId(), paquete.getId(),
+            ))
+        except sqlite3.Error:
+            paquete.quitarReservaNoPersistida(reserva)
+            cliente.quitarReserva(reserva)
+            raise
         print(f"  Reserva creada. Total: {pesos(reserva.getTotal())} (estado: {reserva.getEstado()}).")
     except ValueError as error:
         print("  No se pudo reservar: " + str(error))
@@ -199,15 +245,17 @@ def ver_mis_reservas(cliente, sesion):
 def registrar_destino():
     print("\nNuevo destino")
     destino = Destino(None, pedir_texto("Nombre: "), pedir_texto("Zona: "),
-                      pedir_texto("Descripción: "), pedir_entero("Duración en días: "),
-                      pedir_entero("Costo base por persona: "))
-    if destino.getCostoBase() <= 0:
-        print("  El costo base debe ser mayor que cero.")
-    elif catalogo.registrarDestino(destino):
-        destino.asignarId(base_datos.crear_destino(
-            destino.getNombre(), destino.getZona(), destino.getDescripcion(), destino.getDuracionDias(),
-            destino.getCostoBase(), destino.estaDisponible(), destino.getFechaActualizacion().isoformat(),
-        ))
+                      pedir_texto("Descripción: "), pedir_entero("Duración en días: ", minimo=1),
+                      pedir_entero("Costo base por persona: ", minimo=1))
+    if catalogo.registrarDestino(destino):
+        try:
+            destino.asignarId(base_datos.crear_destino(
+                destino.getNombre(), destino.getZona(), destino.getDescripcion(), destino.getDuracionDias(),
+                destino.getCostoBase(), destino.estaDisponible(), destino.getFechaActualizacion().isoformat(),
+            ))
+        except sqlite3.Error:
+            catalogo.retirarDestino(destino)
+            raise
         print("  Destino registrado.")
     else:
         print("  Ya existe un destino con ese nombre.")
@@ -217,12 +265,19 @@ def retirar_destino():
     print("\nRetirar destino")
     destino = elegir(catalogo.listarDestinosDisponibles(), lambda d: d.getNombre())
     if destino:
-        catalogo.retirarDestino(destino)
-        if destino.estaDisponible():
-            base_datos.eliminar_destino(destino.getId())
+        if catalogo.destinoIncluidoEnPaquete(destino):
+            actualizado = base_datos.actualizar_destino(
+                destino.getId(), destino.getNombre(), destino.getZona(), destino.getDescripcion(),
+                destino.getDuracionDias(), destino.getCostoBase(), False,
+                destino.getFechaActualizacion().isoformat(),
+            )
         else:
-            guardar_destino(destino)
-        print("  Destino retirado del catálogo.")
+            actualizado = base_datos.eliminar_destino(destino.getId())
+        if actualizado:
+            catalogo.retirarDestino(destino)
+            print("  Destino retirado del catálogo.")
+        else:
+            print("  No se pudo encontrar el destino en la base de datos.")
 
 
 def guardar_destino(destino):
@@ -238,10 +293,15 @@ def actualizar_costo_destino():
     destino = elegir(catalogo.listarDestinosDisponibles(), lambda d: d.getNombre())
     if destino is None:
         return
-    nuevo_costo = pedir_entero("Nuevo costo base por persona: ")
-    if destino.actualizarCostoBase(nuevo_costo):
-        guardar_destino(destino)
+    nuevo_costo = pedir_entero("Nuevo costo base por persona: ", minimo=1)
+    actualizado = base_datos.actualizar_destino(
+        destino.getId(), destino.getNombre(), destino.getZona(), destino.getDescripcion(),
+        destino.getDuracionDias(), nuevo_costo, destino.estaDisponible(), date.today().isoformat(),
+    )
+    if actualizado and destino.actualizarCostoBase(nuevo_costo):
         print("  Costo actualizado.")
+    elif not actualizado:
+        print("  No se pudo encontrar el destino en la base de datos.")
     else:
         print("  El costo base debe ser mayor que cero.")
 
@@ -251,37 +311,52 @@ def crear_paquete(admin):
     nombre = pedir_texto("Nombre: ")
     salida = pedir_fecha("Fecha de salida")
     regreso = pedir_fecha("Fecha de regreso")
-    cupo = pedir_entero("Cupo máximo: ")
-    margen = pedir_entero("Margen en % (ej. 20): ") / 100
+    while salida <= date.today():
+        print("  La fecha de salida debe ser posterior a hoy.")
+        salida = pedir_fecha("Fecha de salida")
+    while regreso <= salida:
+        print("  La fecha de regreso debe ser posterior a la salida.")
+        regreso = pedir_fecha("Fecha de regreso")
+    cupo = pedir_entero("Cupo máximo: ", minimo=1)
+    margen = pedir_entero("Margen en % (ej. 20): ", minimo=0) / 100
     paquete = admin.crearPaquete(nombre, salida, regreso, cupo, margen)
-    paquete.asignarId(base_datos.crear_paquete(
-        paquete.getNombre(), paquete.getFechaSalida().isoformat(), paquete.getFechaRegreso().isoformat(),
-        paquete.getCupoMaximo(), paquete.getMargen(), paquete.getPrecioPorPersona(), paquete.getEstado(),
-    ))
-    print("Elija de 2 a 5 destinos (0 para terminar):")
-    while True:
-        destino = elegir(catalogo.listarDestinosDisponibles(), lambda d: d.getNombre())
-        if destino is None:
-            break
-        if not paquete.agregarDestino(destino):
-            print("  No se pudo agregar (repetido o ya hay 5 destinos).")
-        else:
-            base_datos.vincular_destino_paquete(paquete.getId(), destino.getId(),
-                                                len(paquete.getDestinos()) - 1)
-    base_datos.actualizar_paquete(
-        paquete.getId(), paquete.getNombre(), paquete.getFechaSalida().isoformat(),
-        paquete.getFechaRegreso().isoformat(), paquete.getCupoMaximo(), paquete.getMargen(),
-        paquete.getPrecioPorPersona(), paquete.getEstado(),
-    )
-    if paquete.publicar():
+    try:
+        paquete.asignarId(base_datos.crear_paquete(
+            paquete.getNombre(), paquete.getFechaSalida().isoformat(), paquete.getFechaRegreso().isoformat(),
+            paquete.getCupoMaximo(), paquete.getMargen(), paquete.getPrecioPorPersona(), paquete.getEstado(),
+        ))
+        print("Elija de 2 a 5 destinos (0 para terminar):")
+        while True:
+            destino = elegir(catalogo.listarDestinosDisponibles(), lambda d: d.getNombre())
+            if destino is None:
+                break
+            if not paquete.agregarDestino(destino):
+                print("  No se pudo agregar (repetido o ya hay 5 destinos).")
+            else:
+                base_datos.vincular_destino_paquete(paquete.getId(), destino.getId(),
+                                                    len(paquete.getDestinos()) - 1)
         base_datos.actualizar_paquete(
             paquete.getId(), paquete.getNombre(), paquete.getFechaSalida().isoformat(),
             paquete.getFechaRegreso().isoformat(), paquete.getCupoMaximo(), paquete.getMargen(),
             paquete.getPrecioPorPersona(), paquete.getEstado(),
         )
-        print(f"  Paquete publicado a {pesos(paquete.getPrecioPorPersona())} por persona.")
-    else:
-        print("  El paquete necesita al menos 2 destinos; quedó como borrador.")
+        if paquete.publicar():
+            base_datos.actualizar_paquete(
+                paquete.getId(), paquete.getNombre(), paquete.getFechaSalida().isoformat(),
+                paquete.getFechaRegreso().isoformat(), paquete.getCupoMaximo(), paquete.getMargen(),
+                paquete.getPrecioPorPersona(), paquete.getEstado(),
+            )
+            print(f"  Paquete publicado a {pesos(paquete.getPrecioPorPersona())} por persona.")
+        else:
+            print("  El paquete necesita al menos 2 destinos; quedó como borrador.")
+    except sqlite3.Error:
+        catalogo.retirarPaquete(paquete)
+        if paquete.getId() is not None:
+            try:
+                base_datos.eliminar_paquete(paquete.getId())
+            except sqlite3.Error:
+                pass
+        raise
 
 
 # ---------- Menús ----------
@@ -294,12 +369,14 @@ def menu_cliente(cliente, sesion):
         if opcion == "1":
             ver_paquetes()
         elif opcion == "2":
-            reservar(cliente)
+            ejecutar_accion(reservar, cliente)
         elif opcion == "3":
-            ver_mis_reservas(cliente, sesion)
+            ejecutar_accion(ver_mis_reservas, cliente, sesion)
         elif opcion == "0":
             sesion.cerrar()
             return
+        else:
+            print("  Opción no válida.")
 
 
 def menu_administrador(admin, sesion):
@@ -309,29 +386,38 @@ def menu_administrador(admin, sesion):
               "4. Retirar destino\n5. Crear paquete\n6. Ver paquetes vigentes\n0. Cerrar sesión")
         opcion = input("> ").strip()
         if opcion == "1":
-            for d in catalogo.listarDestinosDisponibles():
-                print(f"  - {d.getNombre()} · {pesos(d.getCostoBase())}")
+            ejecutar_accion(listar_destinos)
         elif opcion == "2":
-            registrar_destino()
+            ejecutar_accion(registrar_destino)
         elif opcion == "3":
-            actualizar_costo_destino()
+            ejecutar_accion(actualizar_costo_destino)
         elif opcion == "4":
-            retirar_destino()
+            ejecutar_accion(retirar_destino)
         elif opcion == "5":
-            crear_paquete(admin)
+            ejecutar_accion(crear_paquete, admin)
         elif opcion == "6":
-            ver_paquetes()
+            ejecutar_accion(ver_paquetes)
         elif opcion == "0":
             sesion.cerrar()
             return
+        else:
+            print("  Opción no válida.")
+
+
+def listar_destinos():
+    for destino in catalogo.listarDestinosDisponibles():
+        print(f"  - {destino.getNombre()} · {pesos(destino.getCostoBase())}")
 
 
 def crear_administrador_inicial():
     if any(isinstance(usuario, Administrador) for usuario in usuarios):
         return
     print("Primera ejecución: cree la cuenta del administrador.")
-    admin = Administrador(None, pedir_texto("Nombre: "), pedir_texto("Correo: "),
-                          getpass("Contraseña: "), catalogo)
+    correo = pedir_correo()
+    while buscar_usuario(correo):
+        print("  Ese correo ya está registrado.")
+        correo = pedir_correo()
+    admin = Administrador(None, pedir_texto("Nombre: "), correo, pedir_clave(), catalogo)
     admin.asignarId(base_datos.crear_usuario(
         admin.getNombre(), admin.getCorreo(), admin.getContrasenaHash(), "administrador",
     ))
@@ -339,20 +425,32 @@ def crear_administrador_inicial():
 
 
 def iniciar():
+    global base_datos
     print("=== Viajes Aventura ===")
-    cargar_datos()
-    crear_administrador_inicial()
-    while True:
-        print("\n--- Menú principal ---")
-        print("1. Ver paquetes vigentes\n2. Registrarse como cliente\n3. Iniciar sesión\n0. Salir")
-        opcion = input("> ").strip()
-        if opcion == "1":
-            ver_paquetes()
-        elif opcion == "2":
-            registrar_cliente()
-        elif opcion == "3":
-            iniciar_sesion()
-        elif opcion == "0":
-            print("Hasta luego.")
+    try:
+        base_datos = BaseDatos()
+        cargar_datos()
+        crear_administrador_inicial()
+        while True:
+            print("\n--- Menú principal ---")
+            print("1. Ver paquetes vigentes\n2. Registrarse como cliente\n3. Iniciar sesión\n0. Salir")
+            opcion = input("> ").strip()
+            if opcion == "1":
+                ejecutar_accion(ver_paquetes)
+            elif opcion == "2":
+                ejecutar_accion(registrar_cliente)
+            elif opcion == "3":
+                ejecutar_accion(iniciar_sesion)
+            elif opcion == "0":
+                print("Hasta luego.")
+                return
+            else:
+                print("  Opción no válida.")
+    except sqlite3.Error:
+        print("No se pudo iniciar o consultar la base de datos. Revise el almacenamiento e intente de nuevo.")
+    except (OSError, OverflowError, ValueError, KeyError, TypeError):
+        print("No se pudo acceder a la base de datos local.")
+    finally:
+        if base_datos is not None:
             base_datos.cerrar()
-            return
+            base_datos = None
