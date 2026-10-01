@@ -266,6 +266,9 @@ def ejecutar_accion(accion, *args):
         print("  No se pudo completar la operación por un problema de almacenamiento.")
     except (OSError, OverflowError):
         print("  No se pudo acceder al almacenamiento local.")
+    except ValueError as error:
+        # Segunda barrera: las clases rechazan datos que no cumplen las reglas del negocio.
+        print("  Dato no válido: " + str(error))
 
 
 def elegir(lista, describir):
@@ -378,8 +381,12 @@ def iniciar_sesion():
         menu_cliente(usuario, sesion)
 
 
-def reservar(cliente):
+def reservar(cliente, sesion):
     print("\nReservar paquete")
+    # R11: solo un cliente con sesión vigente puede reservar.
+    if not sesion.esValida(datetime.now()) or sesion.getUsuario() is not cliente:
+        print("  Su sesión expiró. Inicie sesión de nuevo.")
+        return FINALIZAR_MENU
     paquete = elegir(catalogo.listarPaquetesVigentes(date.today()), describir_paquete)
     if paquete is None:
         return
@@ -541,7 +548,7 @@ def crear_paquete(admin):
 def menu_cliente(cliente, sesion):
     opciones = {
         "1": ("Ver paquetes vigentes", ver_paquetes, ()),
-        "2": ("Reservar", reservar, (cliente,)),
+        "2": ("Reservar", reservar, (cliente, sesion)),
         "3": ("Mis reservas", ver_mis_reservas, (cliente, sesion)),
         "4": ("Cerrar sesión", cerrar_sesion_cliente, ()),
     }

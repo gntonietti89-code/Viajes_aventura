@@ -132,3 +132,44 @@ al menú principal.
 **Resultado:** en `crear_paquete()` de `interface.py`, al agregar un destino se muestra
 `Destino «nombre» agregado (N de 5).` El error que antes era uno solo ahora se separa en dos casos:
 destino repetido o paquete con 5 destinos.
+
+## 2.1.5 — Validación crítica del código generado con IA
+
+**Qué se pidió:** revisar el código generado con IA, identificar errores o inconsistencias y
+justificar si se adoptó, modificó o descartó, con criterios de seguridad, eficiencia y coherencia.
+
+**Herramientas:** Claude Code (2.1.1, 2.1.2, sanitización, contraseña, navegación y este punto) y
+GitHub Copilot (2.1.3 y 2.1.4).
+
+**Adoptado sin cambios:**
+- Hash de contraseñas con PBKDF2-SHA256, sal aleatoria y 200.000 iteraciones, y comparación con
+  `hmac.compare_digest`. *Seguridad:* la contraseña nunca se guarda en texto plano (R10) y la
+  comparación no revela información por el tiempo que tarda.
+- Consultas SQL parametrizadas (`?`) en `database.py`. *Seguridad:* evitan la inyección SQL.
+- Mensajes de error genéricos ante fallas de SQLite. *Seguridad:* no muestran rutas ni detalles
+  internos.
+
+**Modificado:**
+- La lectura de la contraseña (`leer_clave`) se generalizó en `leer_linea()`, que ahora usan todas
+  las entradas. *Eficiencia:* una sola función en vez de una por tipo de dato.
+- El error al agregar destinos ("repetido o ya hay 5") se separó en dos mensajes. *Coherencia:* el
+  usuario sabe cuál regla (R3) no cumplió.
+- `Usuario` quedó como clase normal, no abstracta, por decisión del equipo. *Coherencia:* así
+  está en el UML oficial.
+
+**Descartado:**
+- Volver con `1`: es un dato válido (1 persona, 1 día, cupo 1) y la primera opción de los menús.
+- Volver con `0`: obligaba a que el margen fuera mínimo 1 %, lo que contradice R6 ("nunca es
+  negativo", o sea, 0 % es válido). Se reemplazó por la tecla `Esc`.
+
+**Inconsistencias encontradas al revisar el código contra el caso:**
+- R2 y R5/R6 solo se validaban en el menú: las clases `Destino` y `Paquete` aceptaban costo 0 o
+  negativo, regreso antes de la salida, cupo 0 y margen negativo. Se agregó la validación en sus
+  constructores, como segunda barrera.
+- R11: "Mis reservas" revisaba que la sesión estuviera vigente, pero "Reservar" no. Ahora también
+  lo revisa.
+
+Se probó cada caso antes y después del cambio: antes se aceptaban costo 0 y negativo, regreso
+anterior a la salida, cupo 0, margen −20 % y reservar con una sesión vencida o de otro cliente;
+ahora todos se rechazan, los datos válidos se siguen aceptando y la base de datos existente carga
+sin errores.

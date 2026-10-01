@@ -137,6 +137,9 @@ class Destino:
 
     def __init__(self, id, nombre, zona, descripcion, duracionDias, costoBase, disponible=True,
                  fechaActualizacion=None):
+        # R2: el costo base siempre es mayor que cero.
+        if costoBase <= 0:
+            raise ValueError("El costo base debe ser mayor que cero.")
         self.__id = id
         self.__nombre = nombre
         self.__zona = zona
@@ -237,6 +240,14 @@ class Paquete:
 
     def __init__(self, id, nombre, fechaSalida, fechaRegreso, cupoMaximo, margen,
                  destinos=None, estado=BORRADOR, precioPorPersona=0):
+        # R5: el regreso es posterior a la salida y el cupo es mayor que cero.
+        # R6: el margen nunca es negativo.
+        if fechaRegreso <= fechaSalida:
+            raise ValueError("La fecha de regreso debe ser posterior a la de salida.")
+        if cupoMaximo <= 0:
+            raise ValueError("El cupo máximo debe ser mayor que cero.")
+        if margen < 0:
+            raise ValueError("El margen no puede ser negativo.")
         self.__id = id
         self.__nombre = nombre
         self.__fechaSalida = fechaSalida
