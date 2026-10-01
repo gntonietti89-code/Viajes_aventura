@@ -58,6 +58,14 @@ presentan con mensajes controlados, sin mostrar detalles internos; la conexión 
 o si falla el inicio. Si falla una escritura de reserva o paquete, se evita conservar la operación
 fallida en el estado en memoria.
 
+## Sanitización de entradas
+
+Todo dato ingresado pasa por funciones de `interface.py` que limpian caracteres de control y códigos
+ANSI, unen espacios repetidos, normalizan acentos y aplican largos máximos. El RUT se valida con su
+dígito verificador (sin puntos, ej. 19616711-0) y el teléfono como celular chileno (sin espacios, ej.
++56912345678). La contraseña se escribe con asteriscos y se confirma al crear la cuenta. Límites: contraseña de 8 a 64 caracteres, costo
+hasta $50.000.000, duración hasta 60 días, cupo hasta 100 personas y margen hasta 100 %.
+
 ## Requisitos
 
 - Python 3 (probado con 3.14). Se utiliza la biblioteca estándar, incluida `sqlite3`.

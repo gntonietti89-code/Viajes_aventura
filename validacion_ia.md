@@ -78,3 +78,27 @@ Se comprobó con `py_compile`, Pylance y pruebas manuales: entradas inválidas s
 errores inducidos no interrumpen el menú ni dejan reservas o destinos fallidos en memoria, y un flujo
 válido permite crear un paquete, reservar y recargar los datos desde SQLite. El trabajo se limita al
 criterio 2.1.4; no incluye consumo de APIs de la Unidad 3.
+
+## Sanitización de entradas
+
+**Qué se pidió:** sanitizar todos los datos que ingresa el usuario.
+
+**Resultado:** en `interface.py` se agregó una sección de sanitización que usan todas las entradas.
+Los textos se limpian (se quitan caracteres de control y códigos ANSI que podrían alterar la terminal,
+se unen espacios repetidos y se normalizan acentos) y tienen largo máximo. El RUT se valida con su
+dígito verificador (módulo 11) y el teléfono con formato de celular chileno; ambos se guardan en un
+formato único. El correo se guarda en minúsculas. La contraseña debe tener entre 8 y 64 caracteres.
+Los números tienen máximos (costo $50.000.000, duración 60 días, cupo 100, margen 100 %). Se probó con
+entradas maliciosas (códigos ANSI, textos de 150 caracteres, números de 20 dígitos, RUT falsos) y
+todas fueron rechazadas o limpiadas. Se borró la base de datos de prueba para empezar con datos que
+cumplan las nuevas reglas.
+
+## Contraseña con asteriscos y confirmación
+
+**Qué se pidió:** que al escribir la contraseña se vea un `*` por cada carácter y que al crear una
+cuenta se deba confirmar.
+
+**Resultado:** `interface.py` lee la contraseña tecla por tecla y muestra un `*` por cada carácter;
+permite borrar e ignora flechas y teclas especiales. Funciona en Windows (`msvcrt`) y en Linux/macOS
+(`termios`); si la entrada no viene de un teclado, usa `getpass`. Al registrar un cliente o crear el
+administrador, la contraseña se pide dos veces y debe coincidir. Al iniciar sesión se pide una sola vez.
