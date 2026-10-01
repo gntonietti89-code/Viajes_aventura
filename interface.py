@@ -18,6 +18,13 @@ usuarios = []  # Clientes y administradores registrados.
 base_datos = None
 
 
+class VolverMenu(Exception):
+    """Señal para cancelar la acción actual y regresar al menú anterior."""
+
+
+VOLVER_MENU = object()
+
+
 def cargar_datos():
     """Reconstruye el catálogo y sus relaciones desde SQLite."""
     global catalogo, usuarios
@@ -111,7 +118,10 @@ def validar_telefono(texto):
 
 def pedir_texto(mensaje, largo_maximo=LARGO_TEXTO):
     while True:
-        texto = limpiar_texto(input(mensaje))
+        texto_ingresado = input(mensaje + " (/volver para regresar): ").strip()
+        if texto_ingresado.casefold() == "/volver":
+            raise VolverMenu
+        texto = limpiar_texto(texto_ingresado)
         if not texto:
             print("  No puede quedar vacío.")
         elif len(texto) > largo_maximo:
@@ -148,11 +158,17 @@ def leer_tecla():
 def leer_clave(mensaje):
     """Pide la contraseña mostrando un * por cada carácter, sin revelar lo escrito."""
     if not sys.stdin.isatty():
-        return getpass(mensaje)  # entrada redirigida: no hay teclado donde mostrar asteriscos
-    print(mensaje, end="", flush=True)
+        clave = getpass(mensaje + " (/volver para regresar): ")
+        if clave == "/volver":
+            raise VolverMenu
+        return clave  # entrada redirigida: no hay teclado donde mostrar asteriscos
+    print(mensaje + " (Esc para regresar): ", end="", flush=True)
     clave = ""
     while True:
         tecla = leer_tecla()
+        if tecla == "\x1b":
+            print()
+            raise VolverMenu
         if tecla in ("\r", "\n"):
             print()
             return clave
@@ -210,7 +226,9 @@ def pedir_telefono(mensaje="Teléfono (ej. +56912345678): "):
 
 def pedir_entero(mensaje, minimo=0, maximo=None):
     while True:
-        texto = input(mensaje).strip()
+        texto = input(mensaje + " (/volver para regresar): ").strip()
+        if texto.casefold() == "/volver":
+            raise VolverMenu
         # Se limita el largo antes de convertir para no procesar números gigantes.
         if not (texto.isascii() and texto.isdecimal()) or len(texto) > 12:
             print("  Debe ingresar un número entero no negativo.")
@@ -226,7 +244,9 @@ def pedir_entero(mensaje, minimo=0, maximo=None):
 
 def pedir_fecha(mensaje):
     while True:
-        texto = input(mensaje + " (dd-mm-aaaa): ").strip()
+        texto = input(mensaje + " (dd-mm-aaaa, /volver para regresar): ").strip()
+        if texto.casefold() == "/volver":
+            raise VolverMenu
         try:
             return datetime.strptime(texto, "%d-%m-%Y").date()
         except ValueError:
@@ -237,6 +257,8 @@ def ejecutar_accion(accion, *args):
     """Evita que un fallo de almacenamiento cierre el menú y oculta detalles internos."""
     try:
         return accion(*args)
+    except VolverMenu:
+        print("  Acción cancelada. Volviendo al menú anterior.")
     except sqlite3.Error:
         print("  No se pudo completar la operación por un problema de almacenamiento.")
     except (OSError, OverflowError):
@@ -248,15 +270,42 @@ def elegir(lista, describir):
     if not lista:
         print("  No hay elementos para mostrar.")
         return None
-    for i, elemento in enumerate(lista, start=1):
-        print(f"  {i}. {describir(elemento)}")
+    opciones = {str(i): describir(elemento) for i, elemento in enumerate(lista, start=1)}
+    opcion = leer_opcion_menu("Elija un elemento", opciones, texto_volver="Cancelar")
+    if opcion is VOLVER_MENU:
+        raise VolverMenu
+    return lista[int(opcion) - 1] if opcion is not None else None
+
+
+def leer_opcion_menu(titulo, opciones, texto_volver="Volver"):
+    """Muestra y valida opciones; todo menú obtiene la misma salida de regreso."""
     while True:
-        opcion = pedir_entero("  Elija un número (0 para cancelar): ")
-        if opcion == 0:
+        print(f"\n--- {titulo} ---")
+        for clave, descripcion in opciones.items():
+            print(f"{clave}. {descripcion}")
+        print(f"0. {texto_volver}")
+        opcion = input("> ").strip()
+        if opcion.casefold() == "/volver":
+            return VOLVER_MENU
+        if opcion == "0":
             return None
-        if 1 <= opcion <= len(lista):
-            return lista[opcion - 1]
-        print("  Selección fuera de rango.")
+        if opcion in opciones:
+            return opcion
+        print("  Opción no válida. Elija una opción del menú o 0 para volver.")
+
+
+def ejecutar_menu(titulo, opciones, texto_volver="Volver"):
+    """Despacha opciones con el mismo comportamiento de navegación en cualquier menú."""
+    while True:
+        opcion = leer_opcion_menu(
+            titulo,
+            {clave: descripcion for clave, (descripcion, _accion, _args) in opciones.items()},
+            texto_volver,
+        )
+        if opcion is None or opcion is VOLVER_MENU:
+            return
+        _descripcion, accion, argumentos = opciones[opcion]
+        ejecutar_accion(accion, *argumentos)
 
 
 def pesos(monto):
@@ -467,7 +516,7 @@ def crear_paquete(admin):
             print(f"  Paquete publicado a {pesos(paquete.getPrecioPorPersona())} por persona.")
         else:
             print("  El paquete necesita al menos 2 destinos; quedó como borrador.")
-    except sqlite3.Error:
+    except (sqlite3.Error, VolverMenu):
         catalogo.retirarPaquete(paquete)
         if paquete.getId() is not None:
             try:
@@ -480,46 +529,26 @@ def crear_paquete(admin):
 # ---------- Menús ----------
 
 def menu_cliente(cliente, sesion):
-    while True:
-        print("\n--- Menú cliente ---")
-        print("1. Ver paquetes vigentes\n2. Reservar\n3. Mis reservas\n0. Cerrar sesión")
-        opcion = input("> ").strip()
-        if opcion == "1":
-            ver_paquetes()
-        elif opcion == "2":
-            ejecutar_accion(reservar, cliente)
-        elif opcion == "3":
-            ejecutar_accion(ver_mis_reservas, cliente, sesion)
-        elif opcion == "0":
-            sesion.cerrar()
-            return
-        else:
-            print("  Opción no válida.")
+    opciones = {
+        "1": ("Ver paquetes vigentes", ver_paquetes, ()),
+        "2": ("Reservar", reservar, (cliente,)),
+        "3": ("Mis reservas", ver_mis_reservas, (cliente, sesion)),
+    }
+    ejecutar_menu("Menú cliente", opciones, "Cerrar sesión y volver")
+    sesion.cerrar()
 
 
 def menu_administrador(admin, sesion):
-    while True:
-        print("\n--- Menú administrador ---")
-        print("1. Listar destinos\n2. Registrar destino\n3. Actualizar costo de destino\n"
-              "4. Retirar destino\n5. Crear paquete\n6. Ver paquetes vigentes\n0. Cerrar sesión")
-        opcion = input("> ").strip()
-        if opcion == "1":
-            ejecutar_accion(listar_destinos)
-        elif opcion == "2":
-            ejecutar_accion(registrar_destino)
-        elif opcion == "3":
-            ejecutar_accion(actualizar_costo_destino)
-        elif opcion == "4":
-            ejecutar_accion(retirar_destino)
-        elif opcion == "5":
-            ejecutar_accion(crear_paquete, admin)
-        elif opcion == "6":
-            ejecutar_accion(ver_paquetes)
-        elif opcion == "0":
-            sesion.cerrar()
-            return
-        else:
-            print("  Opción no válida.")
+    opciones = {
+        "1": ("Listar destinos", listar_destinos, ()),
+        "2": ("Registrar destino", registrar_destino, ()),
+        "3": ("Actualizar costo de destino", actualizar_costo_destino, ()),
+        "4": ("Retirar destino", retirar_destino, ()),
+        "5": ("Crear paquete", crear_paquete, (admin,)),
+        "6": ("Ver paquetes vigentes", ver_paquetes, ()),
+    }
+    ejecutar_menu("Menú administrador", opciones, "Cerrar sesión y volver")
+    sesion.cerrar()
 
 
 def listar_destinos():
@@ -549,21 +578,15 @@ def iniciar():
         base_datos = BaseDatos()
         cargar_datos()
         crear_administrador_inicial()
-        while True:
-            print("\n--- Menú principal ---")
-            print("1. Ver paquetes vigentes\n2. Registrarse como cliente\n3. Iniciar sesión\n0. Salir")
-            opcion = input("> ").strip()
-            if opcion == "1":
-                ejecutar_accion(ver_paquetes)
-            elif opcion == "2":
-                ejecutar_accion(registrar_cliente)
-            elif opcion == "3":
-                ejecutar_accion(iniciar_sesion)
-            elif opcion == "0":
-                print("Hasta luego.")
-                return
-            else:
-                print("  Opción no válida.")
+        opciones = {
+            "1": ("Ver paquetes vigentes", ver_paquetes, ()),
+            "2": ("Registrarse como cliente", registrar_cliente, ()),
+            "3": ("Iniciar sesión", iniciar_sesion, ()),
+        }
+        ejecutar_menu("Menú principal", opciones, "Salir")
+        print("Hasta luego.")
+    except VolverMenu:
+        print("Configuración inicial cancelada. Puede volver a ejecutar el programa.")
     except sqlite3.Error:
         print("No se pudo iniciar o consultar la base de datos. Revise el almacenamiento e intente de nuevo.")
     except (OSError, OverflowError, ValueError, KeyError, TypeError):

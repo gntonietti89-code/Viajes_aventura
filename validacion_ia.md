@@ -73,11 +73,19 @@ contraseñas no vacías, enteros dentro de los mínimos permitidos, opciones den
 coherentes para los paquetes. Se incorporó manejo de errores SQLite y de acceso al almacenamiento con
 mensajes controlados que no exponen detalles internos; la conexión se cierra también si falla el inicio.
 Si falla la persistencia de una reserva, destino o paquete, se revierte el cambio en memoria cuando es
-posible. GitHub Copilot ayudó a identificar los puntos que requerían controles y se revisó el resultado.
+posible. Para permitir volver de una opción ingresada por error, los menús principal, cliente y
+administrador usan el despachador común `ejecutar_menu()`: muestra una opción de regreso, rechaza
+opciones inválidas sin abandonar el menú y permite incorporar futuras opciones agregándolas a su mapa.
+En los formularios se puede escribir `/volver`; al ingresar una contraseña se puede presionar `Esc`.
+Cancelar la selección de destinos de un paquete elimina también el borrador parcial. GitHub Copilot
+ayudó a identificar y revisar estos controles.
+
 Se comprobó con `py_compile`, Pylance y pruebas manuales: entradas inválidas se vuelven a solicitar,
-errores inducidos no interrumpen el menú ni dejan reservas o destinos fallidos en memoria, y un flujo
-válido permite crear un paquete, reservar y recargar los datos desde SQLite. El trabajo se limita al
-criterio 2.1.4; no incluye consumo de APIs de la Unidad 3.
+errores inducidos no interrumpen el menú ni dejan registros fallidos en memoria, y la navegación permite
+volver desde menús y formularios. También se probó una opción futura añadida al mapa común, la
+cancelación de contraseña y el rollback de un paquete parcialmente creado. Un flujo válido permite
+crear un paquete, reservar y recargar los datos desde SQLite. El trabajo se limita al criterio 2.1.4;
+no incluye consumo de APIs de la Unidad 3.
 
 ## Sanitización de entradas
 

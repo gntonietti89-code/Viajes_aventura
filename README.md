@@ -58,6 +58,13 @@ presentan con mensajes controlados, sin mostrar detalles internos; la conexión 
 o si falla el inicio. Si falla una escritura de reserva o paquete, se evita conservar la operación
 fallida en el estado en memoria.
 
+La navegación de los menús principal, cliente y administrador usa el despachador común
+`ejecutar_menu()`: `0` regresa al menú anterior o sale, y las opciones inválidas permiten volver a
+elegir. En los formularios, `/volver` cancela la acción; al escribir una contraseña se puede usar
+`Esc` (o `/volver` cuando la entrada no es interactiva). Las opciones nuevas se agregan al mapa del
+menú y reciben automáticamente el mismo comportamiento. Si se cancela la creación de un paquete, se
+elimina también el borrador parcial.
+
 ## Sanitización de entradas
 
 Todo dato ingresado pasa por funciones de `interface.py` que limpian caracteres de control y códigos
