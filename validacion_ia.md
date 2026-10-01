@@ -173,3 +173,23 @@ Se probó cada caso antes y después del cambio: antes se aceptaban costo 0 y ne
 anterior a la salida, cupo 0, margen −20 % y reservar con una sesión vencida o de otro cliente;
 ahora todos se rechazan, los datos válidos se siguen aceptando y la base de datos existente carga
 sin errores.
+
+## 3.1.1 — Consumo de servicios externos mediante APIs
+
+**Qué se pidió:** consumir APIs externas con una librería oficial (`requests`), procesar el JSON y
+usar solo los datos relevantes, adaptado a Viajes Aventura: clima de un destino y precio de un
+paquete en dólares o euros.
+
+**Resultado:** nuevo archivo `servicios_externos.py` con las clases `ServicioClima` (Open-Meteo) y
+`ServicioCambio` (mindicador.cl). Del JSON se toman solo la temperatura, la humedad y el código del
+tiempo (traducido a texto), y el último valor del dólar o del euro. Antes de usarlos se comprueba que
+existan y estén en un rango válido. Se agregaron las opciones al menú del cliente (4 y 5) y al del
+administrador (7). Se eligieron APIs sin llave para no tener secretos que guardar.
+
+Al probar con los destinos reales se encontró que el buscador de Open-Meteo solo reconoce ciudades:
+"Valle del Elqui", "Cajón del Maipo" o "Salar de Surire" no aparecen. Se descartó guardar
+coordenadas en `Destino`, porque obligaba a cambiar el UML y la base de datos. En cambio, si el
+destino no se encuentra, el programa pide la ciudad más cercana (por ejemplo, Vicuña). Se probó con
+las APIs reales: San Pedro de Atacama, Valle del Elqui con Vicuña, una ciudad inexistente, Norte
+Mágico en USD y Gran Chile en EUR. Sin conexión, se muestra un aviso y el programa sigue funcionando.
+

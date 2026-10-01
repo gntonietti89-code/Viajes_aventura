@@ -9,12 +9,17 @@ import sqlite3
 import sys
 import unicodedata
 
+import requests
+
 from database import BaseDatos
 from main import Administrador, Catalogo, Cliente, Destino, Paquete, Reserva
+from servicios_externos import ServicioCambio, ServicioClima
 
 catalogo = Catalogo()
 usuarios = []  # Clientes y administradores registrados.
 base_datos = None
+servicio_clima = ServicioClima()
+servicio_cambio = ServicioCambio()
 
 
 class VolverMenu(Exception):
@@ -550,7 +555,9 @@ def menu_cliente(cliente, sesion):
         "1": ("Ver paquetes vigentes", ver_paquetes, ()),
         "2": ("Reservar", reservar, (cliente, sesion)),
         "3": ("Mis reservas", ver_mis_reservas, (cliente, sesion)),
-        "4": ("Cerrar sesión", cerrar_sesion_cliente, ()),
+        "4": ("Ver clima de un destino", ver_clima_destino, ()),
+        "5": ("Ver precio de un paquete en dólares o euros", ver_precio_en_moneda, ()),
+        "6": ("Cerrar sesión", cerrar_sesion_cliente, ()),
     }
     ejecutar_menu("Menú cliente", opciones, "Cerrar sesión y volver")
     sesion.cerrar()
@@ -569,6 +576,7 @@ def menu_administrador(admin, sesion):
         "4": ("Retirar destino", retirar_destino, ()),
         "5": ("Crear paquete", crear_paquete, (admin,)),
         "6": ("Ver paquetes vigentes", ver_paquetes, ()),
+        "7": ("Ver clima de un destino", ver_clima_destino, ()),
     }
     ejecutar_menu("Menú administrador", opciones, "Cerrar sesión y volver")
     sesion.cerrar()
@@ -577,6 +585,55 @@ def menu_administrador(admin, sesion):
 def listar_destinos():
     for destino in catalogo.listarDestinosDisponibles():
         print(f"  - {destino.getNombre()} · {pesos(destino.getCostoBase())}")
+
+
+# ---------- Servicios externos (Unidad 3) ----------
+
+def ver_clima_destino():
+    print("\nClima actual de un destino")
+    destino = elegir(catalogo.listarDestinosDisponibles(), lambda d: f"{d.getNombre()} ({d.getZona()})")
+    if destino is None:
+        return
+    try:
+        ubicacion = servicio_clima.buscarUbicacion(destino.getNombre())
+        if ubicacion is None:
+            # Algunos destinos son zonas o parques, no ciudades: se usa la ciudad más cercana.
+            print(f"  No se encontró «{destino.getNombre()}» en el mapa.")
+            ubicacion = servicio_clima.buscarUbicacion(pedir_texto("Ciudad más cercana (ej. Vicuña): ", 60))
+            if ubicacion is None:
+                print("  Tampoco se encontró esa ciudad en Chile.")
+                return
+        nombre, region, latitud, longitud = ubicacion
+        clima = servicio_clima.consultarClima(latitud, longitud)
+    except (requests.RequestException, KeyError, TypeError, ValueError):
+        print("  No se pudo consultar el clima en este momento. Intente más tarde.")
+        return
+    print(f"  {destino.getNombre()} — datos de {nombre}, {region}:")
+    print(f"  {clima['estado']} · {clima['temperatura']:.1f} °C · humedad {clima['humedad']} %")
+
+
+def ver_precio_en_moneda():
+    print("\nPrecio de un paquete en moneda extranjera")
+    paquete = elegir(catalogo.listarPaquetesVigentes(date.today()), describir_paquete)
+    if paquete is None:
+        return
+    moneda = elegir(list(ServicioCambio.MONEDAS),
+                    lambda codigo: f"{ServicioCambio.MONEDAS[codigo][1]} ({codigo})")
+    if moneda is None:
+        return
+    try:
+        monto, valor, fecha = servicio_cambio.convertir(paquete.getPrecioPorPersona(), moneda)
+    except (requests.RequestException, KeyError, IndexError, TypeError, ValueError):
+        print("  No se pudo consultar el tipo de cambio en este momento. Intente más tarde.")
+        return
+    print(f"  {paquete.getNombre()}: {pesos(paquete.getPrecioPorPersona())} por persona "
+          f"≈ {moneda} {decimal_chileno(monto)}")
+    print(f"  (1 {moneda} = {pesos(round(valor))} según el Banco Central, {fecha})")
+
+
+def decimal_chileno(numero):
+    """Formato chileno con 2 decimales: 1.234,56"""
+    return f"{numero:,.2f}".replace(",", "#").replace(".", ",").replace("#", ".")
 
 
 def crear_administrador_inicial():
