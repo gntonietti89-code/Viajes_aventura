@@ -112,3 +112,23 @@ cuenta se deba confirmar.
 permite borrar e ignora flechas y teclas especiales. Funciona en Windows (`msvcrt`) y en Linux/macOS
 (`termios`); si la entrada no viene de un teclado, usa `getpass`. Al registrar un cliente o crear el
 administrador, la contraseña se pide dos veces y debe coincidir. Al iniciar sesión se pide una sola vez.
+
+## Volver con Esc
+
+**Qué se pidió:** volver al menú anterior con la tecla `Esc` en vez de escribir `/volver`.
+
+**Resultado:** en `interface.py`, la nueva función `leer_linea()` lee lo que se escribe tecla por
+tecla (la misma técnica que ya usaba la contraseña) y, si se presiona `Esc`, cancela la acción y
+vuelve al menú anterior. La usan todos los formularios (texto, correo, RUT, teléfono, números, fechas
+y contraseña) y los menús, que además mantienen su opción `0`. Se quitó `/volver` de los mensajes y
+cada pregunta muestra el aviso `(Esc para volver)`. Antes se probó con `0`, pero se descartó
+porque obligaba a que el margen no pudiera ser 0 %. Se probó registrar un cliente y volver con `Esc`
+al menú principal.
+
+## Confirmación al agregar destinos
+
+**Qué se pidió:** que al elegir un destino para un paquete se avise que quedó agregado.
+
+**Resultado:** en `crear_paquete()` de `interface.py`, al agregar un destino se muestra
+`Destino «nombre» agregado (N de 5).` El error que antes era uno solo ahora se separa en dos casos:
+destino repetido o paquete con 5 destinos.

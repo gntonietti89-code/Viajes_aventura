@@ -4,7 +4,6 @@ Los datos se guardan en SQLite (database.py) y se cargan al iniciar el programa.
 """
 
 from datetime import date, datetime
-from getpass import getpass
 import re
 import sqlite3
 import sys
@@ -117,28 +116,6 @@ def validar_telefono(texto):
 
 # ---------- Ayudas para pedir datos ----------
 
-def pedir_texto(mensaje, largo_maximo=LARGO_TEXTO):
-    while True:
-        texto_ingresado = input(mensaje + " (/volver para regresar): ").strip()
-        if texto_ingresado.casefold() == "/volver":
-            raise VolverMenu
-        texto = limpiar_texto(texto_ingresado)
-        if not texto:
-            print("  No puede quedar vacío.")
-        elif len(texto) > largo_maximo:
-            print(f"  Máximo {largo_maximo} caracteres.")
-        else:
-            return texto
-
-
-def pedir_correo(mensaje="Correo: "):
-    while True:
-        correo = pedir_texto(mensaje, LARGO_CORREO).lower()
-        if re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", correo):
-            return correo
-        print("  Ingrese un correo con formato válido.")
-
-
 def leer_tecla():
     """Lee una tecla sin mostrarla en pantalla (Windows, Linux o macOS)."""
     try:
@@ -156,15 +133,25 @@ def leer_tecla():
             termios.tcsetattr(descriptor, termios.TCSADRAIN, anterior)
 
 
-def leer_clave(mensaje):
-    """Pide la contraseña mostrando un * por cada carácter, sin revelar lo escrito."""
+def leer_linea(mensaje, ocultar=False, largo_maximo=LARGO_DESCRIPCION + 1, aviso="Esc para volver"):
+    """Lee lo que escribe el usuario tecla por tecla; Esc cancela y vuelve al menú anterior.
+
+    Con ocultar=True muestra un * por cada carácter (contraseñas).
+    """
+    if aviso:
+        mensaje = f"{mensaje.rstrip().rstrip(':')} ({aviso}): "
+    print(mensaje, end="", flush=True)
     if not sys.stdin.isatty():
-        clave = getpass(mensaje + " (/volver para regresar): ")
-        if clave == "/volver":
+        # Entrada redirigida: no hay teclado, se lee la línea completa.
+        linea = sys.stdin.readline()
+        if not linea:
+            raise EOFError
+        linea = linea.rstrip("\r\n")
+        if linea.startswith("\x1b"):
+            print()
             raise VolverMenu
-        return clave  # entrada redirigida: no hay teclado donde mostrar asteriscos
-    print(mensaje + " (Esc para regresar): ", end="", flush=True)
-    clave = ""
+        return linea
+    texto = ""
     while True:
         tecla = leer_tecla()
         if tecla == "\x1b":
@@ -172,24 +159,43 @@ def leer_clave(mensaje):
             raise VolverMenu
         if tecla in ("\r", "\n"):
             print()
-            return clave
+            return texto
         if tecla == "\x03":  # Ctrl+C
             raise KeyboardInterrupt
         if tecla in ("\x00", "\xe0"):  # flechas y teclas especiales en Windows
             leer_tecla()
         elif tecla in ("\b", "\x7f"):  # borrar
-            if clave:
-                clave = clave[:-1]
+            if texto:
+                texto = texto[:-1]
                 print("\b \b", end="", flush=True)
-        elif tecla.isprintable() and len(clave) < CLAVE_MAX + 1:
-            clave += tecla
-            print("*", end="", flush=True)
+        elif tecla.isprintable() and len(texto) < largo_maximo:
+            texto += tecla
+            print("*" if ocultar else tecla, end="", flush=True)
+
+
+def pedir_texto(mensaje, largo_maximo=LARGO_TEXTO):
+    while True:
+        texto = limpiar_texto(leer_linea(mensaje))
+        if not texto:
+            print("  No puede quedar vacío.")
+        elif len(texto) > largo_maximo:
+            print(f"  Máximo {largo_maximo} caracteres.")
+        else:
+            return texto
+
+
+def pedir_correo(mensaje="Correo: "):
+    while True:
+        correo = pedir_texto(mensaje, LARGO_CORREO).lower()
+        if re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", correo):
+            return correo
+        print("  Ingrese un correo con formato válido.")
 
 
 def pedir_clave(mensaje="Contraseña: ", validar_largo=True):
     """Al registrar se exige el largo; al iniciar sesión solo que no esté vacía."""
     while True:
-        clave = leer_clave(mensaje)
+        clave = leer_linea(mensaje, ocultar=True, largo_maximo=CLAVE_MAX + 1)
         if not clave.strip():
             print("  La contraseña no puede quedar vacía.")
         elif len(clave) > CLAVE_MAX:
@@ -204,7 +210,7 @@ def pedir_clave_nueva():
     """Para crear una cuenta: pide la contraseña dos veces y exige que coincidan."""
     while True:
         clave = pedir_clave()
-        if leer_clave("Confirmar contraseña: ") == clave:
+        if leer_linea("Confirmar contraseña: ", ocultar=True, largo_maximo=CLAVE_MAX + 1) == clave:
             return clave
         print("  Las contraseñas no coinciden. Inténtelo de nuevo.")
 
@@ -227,9 +233,7 @@ def pedir_telefono(mensaje="Teléfono (ej. +56912345678): "):
 
 def pedir_entero(mensaje, minimo=0, maximo=None):
     while True:
-        texto = input(mensaje + " (/volver para regresar): ").strip()
-        if texto.casefold() == "/volver":
-            raise VolverMenu
+        texto = leer_linea(mensaje).strip()
         # Se limita el largo antes de convertir para no procesar números gigantes.
         if not (texto.isascii() and texto.isdecimal()) or len(texto) > 12:
             print("  Debe ingresar un número entero no negativo.")
@@ -245,9 +249,7 @@ def pedir_entero(mensaje, minimo=0, maximo=None):
 
 def pedir_fecha(mensaje):
     while True:
-        texto = input(mensaje + " (dd-mm-aaaa, /volver para regresar): ").strip()
-        if texto.casefold() == "/volver":
-            raise VolverMenu
+        texto = leer_linea(mensaje, aviso="dd-mm-aaaa, Esc para volver").strip()
         try:
             return datetime.strptime(texto, "%d-%m-%Y").date()
         except ValueError:
@@ -285,8 +287,9 @@ def leer_opcion_menu(titulo, opciones, texto_volver="Volver"):
         for clave, descripcion in opciones.items():
             print(f"{clave}. {descripcion}")
         print(f"0. {texto_volver}")
-        opcion = input("> ").strip()
-        if opcion.casefold() == "/volver":
+        try:
+            opcion = leer_linea("> ", aviso=None).strip()
+        except VolverMenu:
             return VOLVER_MENU
         if opcion == "0":
             return None
@@ -500,11 +503,15 @@ def crear_paquete(admin):
             destino = elegir(catalogo.listarDestinosDisponibles(), lambda d: d.getNombre())
             if destino is None:
                 break
-            if not paquete.agregarDestino(destino):
-                print("  No se pudo agregar (repetido o ya hay 5 destinos).")
+            if destino in paquete.getDestinos():
+                print(f"  «{destino.getNombre()}» ya está en el paquete.")
+            elif not paquete.agregarDestino(destino):
+                print("  No se pudo agregar: el paquete ya tiene 5 destinos.")
             else:
                 base_datos.vincular_destino_paquete(paquete.getId(), destino.getId(),
                                                     len(paquete.getDestinos()) - 1)
+                print(f"  Destino «{destino.getNombre()}» agregado "
+                      f"({len(paquete.getDestinos())} de 5).")
         base_datos.actualizar_paquete(
             paquete.getId(), paquete.getNombre(), paquete.getFechaSalida().isoformat(),
             paquete.getFechaRegreso().isoformat(), paquete.getCupoMaximo(), paquete.getMargen(),
