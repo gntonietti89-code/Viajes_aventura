@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 
 RUTA_ENV = Path(__file__).with_name(".env")
 VARIABLE_LLAVE = "VIAJES_CLAVE_CIFRADO"
-# Todo texto cifrado con Fernet empieza así (versión 0x80 en base64).
+# Cualquier texto cifrado con Fernet empieza así (versión 0x80 en base64).
 PREFIJO_FERNET = "gAAAAA"
 
 

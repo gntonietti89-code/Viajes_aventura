@@ -19,26 +19,31 @@ CLIENTES = [
     ("Carla Muñoz", "carla@prueba.cl", "12345678-5", "+56933333333"),
 ]
 
+SAN_PEDRO = "San Pedro de Atacama"
+PUERTO_VARAS = "Puerto Varas"
+TORRES_DEL_PAINE = "Torres del Paine"
+CHILOE = "Chiloé"
+
 DESTINOS = [
     # nombre, zona, descripción, días, costo base por persona
-    ("San Pedro de Atacama", "Norte", "Desierto, géiseres del Tatio y valle de la Luna", 4, 180000),
+    (SAN_PEDRO, "Norte", "Desierto, géiseres del Tatio y valle de la Luna", 4, 180000),
     ("Valle del Elqui", "Norte Chico", "Observatorios, pisco y cielos despejados", 3, 95000),
     ("Isla de Pascua", "Insular", "Moáis, playa Anakena y cultura Rapa Nui", 5, 450000),
-    ("Puerto Varas", "Sur", "Lago Llanquihue, volcán Osorno y saltos del Petrohué", 3, 120000),
-    ("Torres del Paine", "Patagonia", "Trekking al mirador de las Torres y glaciar Grey", 5, 320000),
-    ("Chiloé", "Sur", "Iglesias de madera, palafitos y curanto", 3, 110000),
+    (PUERTO_VARAS, "Sur", "Lago Llanquihue, volcán Osorno y saltos del Petrohué", 3, 120000),
+    (TORRES_DEL_PAINE, "Patagonia", "Trekking al mirador de las Torres y glaciar Grey", 5, 320000),
+    (CHILOE, "Sur", "Iglesias de madera, palafitos y curanto", 3, 110000),
 ]
 
 HOY = date.today()
 
 PAQUETES = [
     # nombre, días hasta la salida, duración, cupo, margen, destinos
-    ("Norte Mágico", 30, 7, 20, 0.20, ["San Pedro de Atacama", "Valle del Elqui"]),
-    ("Sur de Lagos", 60, 6, 10, 0.15, ["Puerto Varas", "Chiloé"]),
+    ("Norte Mágico", 30, 7, 20, 0.20, [SAN_PEDRO, "Valle del Elqui"]),
+    ("Sur de Lagos", 60, 6, 10, 0.15, [PUERTO_VARAS, CHILOE]),
     ("Gran Chile", 90, 14, 4, 0.25,
-     ["San Pedro de Atacama", "Isla de Pascua", "Puerto Varas", "Torres del Paine", "Chiloé"]),
+     [SAN_PEDRO, "Isla de Pascua", PUERTO_VARAS, TORRES_DEL_PAINE, CHILOE]),
     # Borrador: solo 1 destino, no se puede publicar ni reservar.
-    ("Patagonia Express (borrador)", 45, 5, 8, 0.10, ["Torres del Paine"]),
+    ("Patagonia Express (borrador)", 45, 5, 8, 0.10, [TORRES_DEL_PAINE]),
 ]
 
 RESERVAS = [
@@ -49,18 +54,7 @@ RESERVAS = [
 ]
 
 
-def guardar_paquete(paquete):
-    interface.base_datos.actualizar_paquete(
-        paquete.getId(), paquete.getNombre(), paquete.getFechaSalida().isoformat(),
-        paquete.getFechaRegreso().isoformat(), paquete.getCupoMaximo(), paquete.getMargen(),
-        paquete.getPrecioPorPersona(), paquete.getEstado(),
-    )
-
-
-def cargar():
-    bd = interface.base_datos
-    catalogo = interface.catalogo
-
+def cargar_clientes(bd):
     for nombre, correo, rut, telefono in CLIENTES:
         if interface.buscar_usuario(correo):
             continue
@@ -71,6 +65,9 @@ def cargar():
         interface.usuarios.append(cliente)
         print(f"Cliente: {correo}")
 
+
+def cargar_destinos(bd, catalogo):
+    """Devuelve todos los destinos disponibles por nombre, incluidos los recién creados."""
     destinos = {d.getNombre(): d for d in catalogo.listarDestinosDisponibles()}
     for nombre, zona, descripcion, dias, costo in DESTINOS:
         if nombre in destinos:
@@ -83,7 +80,11 @@ def cargar():
             ))
             destinos[nombre] = destino
             print(f"Destino: {nombre}")
+    return destinos
 
+
+def cargar_paquetes(bd, destinos):
+    """Devuelve solo los paquetes creados en esta ejecución, por nombre."""
     admin = next(u for u in interface.usuarios if isinstance(u, Administrador))
     existentes = {p["nombre"] for p in bd.listar_paquetes()}
     paquetes = {}
@@ -101,11 +102,14 @@ def cargar():
             if paquete.agregarDestino(destino):
                 bd.vincular_destino_paquete(paquete.getId(), destino.getId(), posicion)
         paquete.publicar()
-        guardar_paquete(paquete)
+        interface.guardar_paquete(paquete)
         paquetes[nombre] = paquete
         print(f"Paquete: {nombre} ({paquete.getEstado()}, "
               f"{interface.pesos(paquete.getPrecioPorPersona())} por persona)")
+    return paquetes
 
+
+def cargar_reservas(bd, paquetes):
     for correo, nombre_paquete, personas in RESERVAS:
         paquete = paquetes.get(nombre_paquete)
         if paquete is None:  # el paquete ya existía: su reserva se creó antes
@@ -118,6 +122,14 @@ def cargar():
         ))
         print(f"Reserva: {correo} -> {nombre_paquete}, {personas} persona(s), "
               f"{interface.pesos(reserva.getTotal())}")
+
+
+def cargar():
+    bd = interface.base_datos
+    cargar_clientes(bd)
+    destinos = cargar_destinos(bd, interface.catalogo)
+    paquetes = cargar_paquetes(bd, destinos)
+    cargar_reservas(bd, paquetes)
 
 
 if __name__ == "__main__":

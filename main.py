@@ -39,6 +39,9 @@ class Sesion:
     def getUsuario(self):
         return self.__usuario
 
+    def getToken(self) -> str:
+        return self.__token
+
     def cerrar(self) -> None:
         self.__cerrada = True
 

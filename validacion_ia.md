@@ -248,3 +248,25 @@ los espacios y las tildes siguen permitidos.
 a solicitar el dato y que `María José` se acepta. También se comprobó que los cuatro formularios usan
 la función común.
 
+
+## Calidad de código (SonarCloud)
+
+**Qué se pidió:** corregir los problemas que SonarCloud marcó en el análisis de la rama `main`
+(98 *code smells*; sin bugs, vulnerabilidades ni *security hotspots*).
+
+**Resultado:** se dividieron las funciones demasiado complejas: `cargar()` de `datos_prueba.py` en
+una función por tipo de dato; `leer_linea()` en `leer_linea_redirigida()` y `procesar_tecla()`; y
+`crear_paquete()` en `elegir_destinos_paquete()` y `guardar_paquete()`, que también usa
+`datos_prueba.py`. Los textos repetidos pasaron a constantes. La regex del correo se cambió por
+una que no retrocede (*backtracking*): ahora rechaza dominios con dos puntos seguidos, como
+`a@b..c`. Se agregó `Sesion.getToken()` porque el token está en el UML y nunca se leía. El aviso
+"TODO" era un falso positivo: el comentario decía "Todo texto cifrado…" en español.
+
+Los 85 avisos de nombres en camelCase no se corrigieron, por decisión del grupo: los nombres siguen
+el UML oficial (`uml.png`). Esas tres reglas (S100, S116 y S117) se ignoran en `.sonarcloud.properties`.
+
+**Validación ejecutada:** con una base de datos temporal se cargaron los datos de prueba dos veces,
+sin duplicados. Se creó un paquete por entrada redirigida y quedó publicado; al cancelar otro con
+Esc, no quedó en la base de datos. Teclas simuladas comprobaron que borrar, las flechas, el límite de
+largo, los asteriscos y Esc funcionan como antes. La regex nueva acepta los mismos correos válidos
+y responde al instante con una entrada maliciosa larga.

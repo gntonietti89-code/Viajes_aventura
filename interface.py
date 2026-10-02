@@ -27,6 +27,7 @@ class VolverMenu(Exception):
 
 VOLVER_MENU = object()
 FINALIZAR_MENU = object()
+VER_PAQUETES = "Ver paquetes vigentes"  # opción presente en los tres menús
 
 
 def cargar_datos():
@@ -158,15 +159,7 @@ def leer_linea(mensaje, ocultar=False, largo_maximo=LARGO_DESCRIPCION + 1, aviso
         mensaje = f"{mensaje.rstrip().rstrip(':')} ({aviso}): "
     print(mensaje, end="", flush=True)
     if not sys.stdin.isatty():
-        # Entrada redirigida: no hay teclado, se lee la línea completa.
-        linea = sys.stdin.readline()
-        if not linea:
-            raise EOFError
-        linea = linea.rstrip("\r\n")
-        if linea.startswith("\x1b"):
-            print()
-            raise VolverMenu
-        return linea
+        return leer_linea_redirigida()
     texto = ""
     while True:
         tecla = leer_tecla()
@@ -176,17 +169,35 @@ def leer_linea(mensaje, ocultar=False, largo_maximo=LARGO_DESCRIPCION + 1, aviso
         if tecla in ("\r", "\n"):
             print()
             return texto
-        if tecla == "\x03":  # Ctrl+C
-            raise KeyboardInterrupt
-        if tecla in ("\x00", "\xe0"):  # flechas y teclas especiales en Windows
-            leer_tecla()
-        elif tecla in ("\b", "\x7f"):  # borrar
-            if texto:
-                texto = texto[:-1]
-                print("\b \b", end="", flush=True)
-        elif tecla.isprintable() and len(texto) < largo_maximo:
-            texto += tecla
-            print("*" if ocultar else tecla, end="", flush=True)
+        texto = procesar_tecla(tecla, texto, ocultar, largo_maximo)
+
+
+def leer_linea_redirigida():
+    """Entrada redirigida: no hay teclado, se lee la línea completa."""
+    linea = sys.stdin.readline()
+    if not linea:
+        raise EOFError
+    linea = linea.rstrip("\r\n")
+    if linea.startswith("\x1b"):
+        print()
+        raise VolverMenu
+    return linea
+
+
+def procesar_tecla(tecla, texto, ocultar, largo_maximo):
+    """Aplica una tecla común al texto escrito y devuelve el texto resultante."""
+    if tecla == "\x03":  # Ctrl+C
+        raise KeyboardInterrupt
+    if tecla in ("\x00", "\xe0"):  # flechas y teclas especiales en Windows
+        leer_tecla()
+    elif tecla in ("\b", "\x7f"):  # borrar
+        if texto:
+            print("\b \b", end="", flush=True)
+            return texto[:-1]
+    elif tecla.isprintable() and len(texto) < largo_maximo:
+        print("*" if ocultar else tecla, end="", flush=True)
+        return texto + tecla
+    return texto
 
 
 def pedir_texto(mensaje, largo_maximo=LARGO_TEXTO):
@@ -211,7 +222,8 @@ def pedir_nombre(mensaje="Nombre: "):
 def pedir_correo(mensaje="Correo: "):
     while True:
         correo = pedir_texto(mensaje, LARGO_CORREO).lower()
-        if re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", correo):
+        # Las partes del dominio no llevan puntos dentro, así la regex no retrocede (backtracking).
+        if re.fullmatch(r"[^\s@]+@[^\s@.]+(?:\.[^\s@.]+)+", correo):
             return correo
         print("  Ingrese un correo con formato válido.")
 
@@ -553,6 +565,32 @@ def actualizar_costo_destino():
         print("  El costo base debe ser mayor que cero.")
 
 
+def guardar_paquete(paquete):
+    base_datos.actualizar_paquete(
+        paquete.getId(), paquete.getNombre(), paquete.getFechaSalida().isoformat(),
+        paquete.getFechaRegreso().isoformat(), paquete.getCupoMaximo(), paquete.getMargen(),
+        paquete.getPrecioPorPersona(), paquete.getEstado(),
+    )
+
+
+def elegir_destinos_paquete(paquete):
+    """Agrega destinos al paquete hasta que el administrador elige 0."""
+    print("Elija de 2 a 5 destinos (0 para terminar):")
+    while True:
+        destino = elegir(catalogo.listarDestinosDisponibles(), lambda d: d.getNombre())
+        if destino is None:
+            return
+        if destino in paquete.getDestinos():
+            print(f"  «{destino.getNombre()}» ya está en el paquete.")
+        elif not paquete.agregarDestino(destino):
+            print("  No se pudo agregar: el paquete ya tiene 5 destinos.")
+        else:
+            base_datos.vincular_destino_paquete(paquete.getId(), destino.getId(),
+                                                len(paquete.getDestinos()) - 1)
+            print(f"  Destino «{destino.getNombre()}» agregado "
+                  f"({len(paquete.getDestinos())} de 5).")
+
+
 def crear_paquete(admin):
     print("\nNuevo paquete")
     nombre = pedir_nombre()
@@ -572,31 +610,10 @@ def crear_paquete(admin):
             paquete.getNombre(), paquete.getFechaSalida().isoformat(), paquete.getFechaRegreso().isoformat(),
             paquete.getCupoMaximo(), paquete.getMargen(), paquete.getPrecioPorPersona(), paquete.getEstado(),
         ))
-        print("Elija de 2 a 5 destinos (0 para terminar):")
-        while True:
-            destino = elegir(catalogo.listarDestinosDisponibles(), lambda d: d.getNombre())
-            if destino is None:
-                break
-            if destino in paquete.getDestinos():
-                print(f"  «{destino.getNombre()}» ya está en el paquete.")
-            elif not paquete.agregarDestino(destino):
-                print("  No se pudo agregar: el paquete ya tiene 5 destinos.")
-            else:
-                base_datos.vincular_destino_paquete(paquete.getId(), destino.getId(),
-                                                    len(paquete.getDestinos()) - 1)
-                print(f"  Destino «{destino.getNombre()}» agregado "
-                      f"({len(paquete.getDestinos())} de 5).")
-        base_datos.actualizar_paquete(
-            paquete.getId(), paquete.getNombre(), paquete.getFechaSalida().isoformat(),
-            paquete.getFechaRegreso().isoformat(), paquete.getCupoMaximo(), paquete.getMargen(),
-            paquete.getPrecioPorPersona(), paquete.getEstado(),
-        )
+        elegir_destinos_paquete(paquete)
+        guardar_paquete(paquete)
         if paquete.publicar():
-            base_datos.actualizar_paquete(
-                paquete.getId(), paquete.getNombre(), paquete.getFechaSalida().isoformat(),
-                paquete.getFechaRegreso().isoformat(), paquete.getCupoMaximo(), paquete.getMargen(),
-                paquete.getPrecioPorPersona(), paquete.getEstado(),
-            )
+            guardar_paquete(paquete)
             print(f"  Paquete publicado a {pesos(paquete.getPrecioPorPersona())} por persona.")
         else:
             print("  El paquete necesita al menos 2 destinos; quedó como borrador.")
@@ -614,7 +631,7 @@ def crear_paquete(admin):
 
 def menu_cliente(cliente, sesion):
     opciones = {
-        "1": ("Ver paquetes vigentes", ver_paquetes, ()),
+        "1": (VER_PAQUETES, ver_paquetes, ()),
         "2": ("Reservar", reservar, (cliente, sesion)),
         "3": ("Mis reservas", ver_mis_reservas, (cliente, sesion)),
         "4": ("Ver clima de un destino", ver_clima_destino, (cliente, sesion)),
@@ -637,7 +654,7 @@ def menu_administrador(admin, sesion):
         "3": ("Actualizar costo de destino", actualizar_costo_destino, ()),
         "4": ("Retirar destino", retirar_destino, ()),
         "5": ("Crear paquete", crear_paquete, (admin,)),
-        "6": ("Ver paquetes vigentes", ver_paquetes, ()),
+        "6": (VER_PAQUETES, ver_paquetes, ()),
         "7": ("Ver clima de un destino", ver_clima_destino, (admin, sesion)),
     }
     ejecutar_menu("Menú administrador", opciones, "Cerrar sesión y volver")
@@ -727,7 +744,7 @@ def iniciar():
         cargar_datos()
         crear_administrador_inicial()
         opciones = {
-            "1": ("Ver paquetes vigentes", ver_paquetes, ()),
+            "1": (VER_PAQUETES, ver_paquetes, ()),
             "2": ("Registrarse como cliente", registrar_cliente, ()),
             "3": ("Iniciar sesión", iniciar_sesion, ()),
         }
