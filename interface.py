@@ -9,12 +9,10 @@ import sqlite3
 import sys
 import unicodedata
 
-import requests
-
 from cifrado import ErrorCifrado
 from database import BaseDatos
 from main import Administrador, Catalogo, Cliente, Destino, Paquete, Reserva
-from servicios_externos import ServicioCambio, ServicioClima
+from servicios_externos import ErrorServicioExterno, ServicioCambio, ServicioClima
 
 catalogo = Catalogo()
 usuarios = []  # Clientes y administradores registrados.
@@ -664,7 +662,7 @@ def ver_clima_destino(usuario, sesion):
                 return
         nombre, region, latitud, longitud = ubicacion
         clima = servicio_clima.consultarClima(latitud, longitud)
-    except (requests.RequestException, KeyError, TypeError, ValueError):
+    except ErrorServicioExterno:
         print("  No se pudo consultar el clima en este momento. Intente más tarde.")
         return
     print(f"  {destino.getNombre()} — datos de {nombre}, {region}:")
@@ -685,7 +683,7 @@ def ver_precio_en_moneda(cliente, sesion):
         return
     try:
         monto, valor, fecha = servicio_cambio.convertir(paquete.getPrecioPorPersona(), moneda)
-    except (requests.RequestException, KeyError, IndexError, TypeError, ValueError):
+    except ErrorServicioExterno:
         print("  No se pudo consultar el tipo de cambio en este momento. Intente más tarde.")
         return
     print(f"  {paquete.getNombre()}: {pesos(paquete.getPrecioPorPersona())} por persona "

@@ -215,3 +215,23 @@ cliente nuevo queda cifrado; con una llave equivocada aparece el mensaje genéri
 tras 3 fallos queda bloqueado; `<script>`, `12345` y `Vicuña;DROP TABLE` se rechazan como ciudad; y
 el clima y el tipo de cambio con una sesión vencida vuelven al menú principal.
 
+## 3.1.3 — Manejo de errores en servicios externos
+
+**Qué se pidió:** aplicar manejo de errores al consumir servicios externos, manteniendo la continuidad
+y estabilidad del sistema.
+
+**Revisión del código agregado:** los menús ya controlaban varios errores HTTP y de datos, pero una
+respuesta JSON con una estructura inesperada podía producir una excepción no controlada. Se reprodujo
+con una respuesta de geolocalización que no era un objeto JSON y se corrigió en la capa de servicios.
+
+**Resultado:** `servicios_externos.py` concentra las consultas HTTP, limita la espera a 10 segundos y
+convierte los errores de conexión, HTTP, JSON y formato de respuesta en `ErrorServicioExterno`. Se
+validan las coordenadas, los valores de clima y humedad, y el valor, fecha y serie del tipo de cambio.
+`interface.py` captura ese error y muestra avisos genéricos para clima y cambio, sin exponer detalles
+internos ni cerrar el menú.
+
+**Validación ejecutada:** con respuestas simuladas se comprobó que un timeout, un JSON con tipo
+incorrecto, datos de clima con estructura inválida y una serie de tipo de cambio vacía generan el error
+controlado. También se verificó que ambas opciones de la interfaz muestran su aviso y regresan sin
+propagar la excepción. No se requirió conexión real a las APIs para estas pruebas.
+

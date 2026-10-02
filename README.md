@@ -17,6 +17,7 @@ aplicada al caso de Viajes Aventura (`caso 1 proyecto final.pdf`).
 | 2.1.5 | Validación del código generado con IA | Hecho ([validacion_ia.md](validacion_ia.md)) |
 | 3.1.1 | Consumo de servicios externos (APIs) | Hecho |
 | 3.1.2 | Mecanismos básicos de seguridad | Hecho |
+| 3.1.3 | Manejo de errores en servicios externos | Hecho |
 
 ## Estructura
 
@@ -111,6 +112,14 @@ clima también en el del administrador (opción 7), así que solo se usan despu�
   apóstrofes (2 a 60 caracteres); la moneda se elige de una lista.
 - **Solo usuarios autenticados:** las consultas de clima y tipo de cambio están en los menús con
   sesión iniciada y revisan que la sesión no haya expirado.
+
+## Manejo de errores en servicios externos (3.1.3)
+
+`servicios_externos.py` centraliza las consultas HTTP con un tiempo máximo de espera de 10 segundos,
+comprueba errores HTTP y normaliza fallos de conexión, JSON y respuestas con formato inesperado como
+`ErrorServicioExterno`. También valida los datos recibidos: coordenadas, valores finitos de clima,
+humedad, serie, fecha y tipo de cambio positivo. La interfaz muestra avisos genéricos si falla el
+clima o el tipo de cambio y vuelve al menú sin interrumpir el programa.
 
 ## Requisitos
 

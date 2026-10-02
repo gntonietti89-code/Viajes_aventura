@@ -5,9 +5,28 @@ Usa la librería requests (PyPI). Ninguna de las dos APIs pide llave de acceso:
 - mindicador.cl: indicadores económicos del Banco Central de Chile (dólar y euro).
 """
 
+from datetime import datetime
+from math import isfinite
+
 import requests
 
 TIEMPO_ESPERA = 10  # segundos; evita que el programa quede esperando a un servicio caído
+
+
+class ErrorServicioExterno(Exception):
+    """La consulta falló o el servicio devolvió datos no válidos."""
+
+
+def _consultar_json(url, params=None):
+    try:
+        respuesta = requests.get(url, params=params, timeout=TIEMPO_ESPERA)
+        respuesta.raise_for_status()
+        datos = respuesta.json()
+    except (requests.RequestException, TypeError, ValueError) as error:
+        raise ErrorServicioExterno from error
+    if not isinstance(datos, dict):
+        raise ErrorServicioExterno("La respuesta del servicio no tiene un formato válido.")
+    return datos
 
 
 class ServicioClima:
@@ -29,41 +48,51 @@ class ServicioClima:
 
     def buscarUbicacion(self, lugar: str):
         """Busca un lugar de Chile. Devuelve (nombre, región, latitud, longitud) o None."""
-        respuesta = requests.get(
+        datos = _consultar_json(
             self.URL_UBICACION,
-            params={"name": lugar, "count": 1, "language": "es", "countryCode": "CL"},
-            timeout=TIEMPO_ESPERA,
+            {"name": lugar, "count": 1, "language": "es", "countryCode": "CL"},
         )
-        respuesta.raise_for_status()
-        resultados = respuesta.json().get("results")
+        resultados = datos.get("results")
+        if resultados is None:
+            return None
+        if not isinstance(resultados, list):
+            raise ErrorServicioExterno("La lista de ubicaciones recibida no es válida.")
         if not resultados:
             return None
-        lugar_encontrado = resultados[0]
-        latitud = float(lugar_encontrado["latitude"])
-        longitud = float(lugar_encontrado["longitude"])
-        if not (-90 <= latitud <= 90 and -180 <= longitud <= 180):
-            raise ValueError("Coordenadas fuera de rango.")
-        return lugar_encontrado["name"], lugar_encontrado.get("admin1", ""), latitud, longitud
+        try:
+            if not isinstance(resultados[0], dict):
+                raise TypeError
+            lugar_encontrado = resultados[0]
+            latitud = float(lugar_encontrado["latitude"])
+            longitud = float(lugar_encontrado["longitude"])
+            if not (-90 <= latitud <= 90 and -180 <= longitud <= 180):
+                raise ValueError
+            return lugar_encontrado["name"], lugar_encontrado.get("admin1", ""), latitud, longitud
+        except (KeyError, TypeError, ValueError, OverflowError) as error:
+            raise ErrorServicioExterno("La ubicación recibida no es válida.") from error
 
     def consultarClima(self, latitud: float, longitud: float) -> dict:
         """Devuelve la temperatura (°C), la humedad (%) y el estado del tiempo actuales."""
-        respuesta = requests.get(
+        datos = _consultar_json(
             self.URL_CLIMA,
-            params={
+            {
                 "latitude": latitud, "longitude": longitud,
                 "current": "temperature_2m,relative_humidity_2m,weather_code",
                 "timezone": "America/Santiago",
             },
-            timeout=TIEMPO_ESPERA,
         )
-        respuesta.raise_for_status()
-        actual = respuesta.json()["current"]
-        # Se toman solo los datos útiles y se comprueba que tengan sentido antes de usarlos.
-        temperatura = float(actual["temperature_2m"])
-        humedad = int(actual["relative_humidity_2m"])
-        codigo = int(actual["weather_code"])
-        if not (-90 <= temperatura <= 60 and 0 <= humedad <= 100):
-            raise ValueError("Datos de clima fuera de rango.")
+        try:
+            actual = datos["current"]
+            if not isinstance(actual, dict):
+                raise TypeError
+            temperatura = float(actual["temperature_2m"])
+            humedad = int(actual["relative_humidity_2m"])
+            codigo = int(actual["weather_code"])
+            if (not isfinite(temperatura) or not -90 <= temperatura <= 60
+                    or not 0 <= humedad <= 100):
+                raise ValueError
+        except (KeyError, TypeError, ValueError, OverflowError) as error:
+            raise ErrorServicioExterno("Los datos de clima recibidos no son válidos.") from error
         return {
             "temperatura": temperatura,
             "humedad": humedad,
@@ -78,14 +107,19 @@ class ServicioCambio:
     def obtenerValor(self, moneda: str):
         """Devuelve (valor en pesos, fecha dd-mm-aaaa) del último registro de la moneda."""
         codigo, _nombre = self.MONEDAS[moneda]
-        respuesta = requests.get(self.URL.format(codigo), timeout=TIEMPO_ESPERA)
-        respuesta.raise_for_status()
-        ultimo = respuesta.json()["serie"][0]
-        valor = float(ultimo["valor"])
-        if valor <= 0:
-            raise ValueError("Tipo de cambio no válido.")
-        anio, mes, dia = ultimo["fecha"][:10].split("-")
-        return valor, f"{dia}-{mes}-{anio}"
+        datos = _consultar_json(self.URL.format(codigo))
+        try:
+            serie = datos["serie"]
+            if not isinstance(serie, list) or not serie or not isinstance(serie[0], dict):
+                raise TypeError
+            ultimo = serie[0]
+            valor = float(ultimo["valor"])
+            fecha = datetime.strptime(ultimo["fecha"][:10], "%Y-%m-%d")
+            if not isfinite(valor) or valor <= 0:
+                raise ValueError
+        except (KeyError, TypeError, ValueError, OverflowError) as error:
+            raise ErrorServicioExterno("El tipo de cambio recibido no es válido.") from error
+        return valor, fecha.strftime("%d-%m-%Y")
 
     def convertir(self, montoPesos: int, moneda: str):
         """Convierte pesos a la moneda pedida. Devuelve (monto convertido, valor usado, fecha)."""
