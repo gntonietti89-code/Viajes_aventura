@@ -11,7 +11,8 @@ import unicodedata
 
 from cifrado import ErrorCifrado
 from database import BaseDatos
-from main import Administrador, Catalogo, Cliente, Destino, Paquete, Reserva
+from main import (BORRADOR, CANCELADA, PAGADA, PENDIENTE, Administrador, Catalogo, Cliente, Destino,
+                  Paquete, Reserva)
 from servicios_externos import ErrorServicioExterno, ServicioCambio, ServicioClima
 
 catalogo = Catalogo()
@@ -238,8 +239,15 @@ def pedir_clave(mensaje="Contraseña: ", validar_largo=True):
             print(f"  La contraseña puede tener como máximo {CLAVE_MAX} caracteres.")
         elif validar_largo and len(clave) < CLAVE_MIN:
             print(f"  La contraseña debe tener al menos {CLAVE_MIN} caracteres.")
+        elif validar_largo and not clave_segura(clave):
+            print("  La contraseña debe combinar letras y números.")
         else:
             return clave
+
+
+def clave_segura(clave):
+    """4.1.5: una clave nueva debe tener al menos una letra y un número."""
+    return any(c.isalpha() for c in clave) and any(c.isdigit() for c in clave)
 
 
 def pedir_clave_nueva():
@@ -289,6 +297,15 @@ def pedir_entero(mensaje, minimo=0, maximo=None):
             print(f"  El valor debe ser menor o igual que {maximo}.")
         else:
             return valor
+
+
+def confirmar(mensaje):
+    """Pide s/n antes de una acción que no se puede deshacer."""
+    while True:
+        respuesta = leer_linea(f"{mensaje} (s/n): ").strip().lower()
+        if respuesta in ("s", "n"):
+            return respuesta == "s"
+        print("  Responda s o n.")
 
 
 def pedir_fecha(mensaje):
@@ -547,22 +564,44 @@ def guardar_destino(destino):
     )
 
 
-def actualizar_costo_destino():
-    print("\nActualizar costo base")
+def modificar_destino():
+    print("\nModificar destino")
     destino = elegir(catalogo.listarDestinosDisponibles(), lambda d: d.getNombre())
     if destino is None:
         return
-    nuevo_costo = pedir_entero("Nuevo costo base por persona: ", minimo=1, maximo=COSTO_MAX)
+    campos = {
+        "Nombre": ("nombre", lambda: pedir_nombre("Nuevo nombre: ")),
+        "Zona": ("zona", lambda: pedir_texto("Nueva zona: ")),
+        "Descripción": ("descripcion", lambda: pedir_texto("Nueva descripción: ", LARGO_DESCRIPCION)),
+        "Duración en días": ("duracion_dias", lambda: pedir_entero(
+            "Nueva duración en días: ", minimo=1, maximo=DURACION_MAX)),
+        "Costo base por persona": ("costo_base", lambda: pedir_entero(
+            "Nuevo costo base por persona: ", minimo=1, maximo=COSTO_MAX)),
+    }
+    campo = elegir(list(campos), str)
+    if campo is None:
+        return
+    datos = {
+        "nombre": destino.getNombre(), "zona": destino.getZona(), "descripcion": destino.getDescripcion(),
+        "duracion_dias": destino.getDuracionDias(), "costo_base": destino.getCostoBase(),
+    }
+    clave, pedir = campos[campo]
+    datos[clave] = pedir()
+    # R1: el nuevo nombre tampoco puede repetirse en el catálogo.
+    if clave == "nombre" and catalogo.existeNombreDestino(datos["nombre"], excepto=destino):
+        print("  Ya existe un destino con ese nombre.")
+        return
     actualizado = base_datos.actualizar_destino(
-        destino.getId(), destino.getNombre(), destino.getZona(), destino.getDescripcion(),
-        destino.getDuracionDias(), nuevo_costo, destino.estaDisponible(), date.today().isoformat(),
+        destino.getId(), datos["nombre"], datos["zona"], datos["descripcion"], datos["duracion_dias"],
+        datos["costo_base"], destino.estaDisponible(), date.today().isoformat(),
     )
-    if actualizado and destino.actualizarCostoBase(nuevo_costo):
-        print("  Costo actualizado.")
-    elif not actualizado:
+    if not actualizado:
         print("  No se pudo encontrar el destino en la base de datos.")
-    else:
-        print("  El costo base debe ser mayor que cero.")
+        return
+    destino.actualizarInformacion(datos["nombre"], datos["zona"], datos["descripcion"], datos["duracion_dias"])
+    # R7: cambiar el costo no altera el precio de los paquetes ya publicados.
+    destino.actualizarCostoBase(datos["costo_base"])
+    print("  Destino actualizado.")
 
 
 def guardar_paquete(paquete):
@@ -611,12 +650,7 @@ def crear_paquete(admin):
             paquete.getCupoMaximo(), paquete.getMargen(), paquete.getPrecioPorPersona(), paquete.getEstado(),
         ))
         elegir_destinos_paquete(paquete)
-        guardar_paquete(paquete)
-        if paquete.publicar():
-            guardar_paquete(paquete)
-            print(f"  Paquete publicado a {pesos(paquete.getPrecioPorPersona())} por persona.")
-        else:
-            print("  El paquete necesita al menos 2 destinos; quedó como borrador.")
+        intentar_publicar(paquete)
     except (sqlite3.Error, VolverMenu):
         catalogo.retirarPaquete(paquete)
         if paquete.getId() is not None:
@@ -627,6 +661,116 @@ def crear_paquete(admin):
         raise
 
 
+def intentar_publicar(paquete):
+    guardar_paquete(paquete)
+    if paquete.publicar():
+        guardar_paquete(paquete)
+        print(f"  Paquete publicado a {pesos(paquete.getPrecioPorPersona())} por persona.")
+    else:
+        print("  El paquete necesita al menos 2 destinos; quedó como borrador.")
+
+
+def describir_paquete_admin(p):
+    return f"{p.getNombre()} · sale {p.getFechaSalida():%d-%m-%Y} · {p.getEstado()}"
+
+
+def completar_borrador():
+    """Un borrador puede recibir más destinos y publicarse; uno publicado ya no cambia (R7)."""
+    print("\nCompletar paquete en borrador")
+    borradores = [p for p in catalogo.listarPaquetes() if p.getEstado() == BORRADOR]
+    paquete = elegir(borradores, describir_paquete_admin)
+    if paquete is None:
+        return
+    print(f"  Destinos actuales: {', '.join(d.getNombre() for d in paquete.getDestinos()) or 'ninguno'}")
+    elegir_destinos_paquete(paquete)
+    intentar_publicar(paquete)
+
+
+def eliminar_paquete():
+    print("\nEliminar paquete")
+    paquete = elegir(catalogo.listarPaquetes(), describir_paquete_admin)
+    if paquete is None:
+        return
+    # Supuesto: un paquete con reservas no se elimina, para conservar el historial de los clientes.
+    if paquete.getReservas():
+        print("  No se puede eliminar: el paquete tiene reservas registradas.")
+        return
+    if not confirmar(f"¿Eliminar «{paquete.getNombre()}»?"):
+        print("  No se eliminó el paquete.")
+        return
+    if base_datos.eliminar_paquete(paquete.getId()):
+        catalogo.retirarPaquete(paquete)
+        print("  Paquete eliminado.")
+    else:
+        print("  No se pudo encontrar el paquete en la base de datos.")
+
+
+# ---------- Gestión de reservas ----------
+
+def guardar_estado_reserva(reserva, estado):
+    """Guarda el nuevo estado en la base de datos antes de cambiar el objeto en memoria."""
+    return base_datos.actualizar_reserva(
+        reserva.getId(), reserva.getFechaEmision().isoformat(), reserva.getCantidadPersonas(),
+        reserva.getTotal(), estado, reserva.getCliente().getId(), reserva.getPaquete().getId(),
+    )
+
+
+def describir_reserva(r):
+    return (f"{r.getPaquete().getNombre()} · {r.getFechaEmision():%d-%m-%Y} · "
+            f"{r.getCantidadPersonas()} persona(s) · {pesos(r.getTotal())} · {r.getEstado()}")
+
+
+def cancelar_reserva(cliente, sesion):
+    print("\nCancelar una reserva")
+    if not sesion_vigente(sesion, cliente):
+        return FINALIZAR_MENU
+    # Supuesto: el cliente puede desistir de una reserva pendiente mientras el paquete no haya salido.
+    cancelables = [r for r in cliente.listarMisReservas(sesion)
+                   if r.getEstado() == PENDIENTE and r.getPaquete().getFechaSalida() > date.today()]
+    if not cancelables:
+        print("  No tiene reservas pendientes que se puedan cancelar.")
+        return
+    reserva = elegir(cancelables, describir_reserva)
+    if reserva is None or not confirmar("¿Confirma la cancelación?"):
+        return
+    if guardar_estado_reserva(reserva, CANCELADA):
+        reserva.cancelar()
+        # R14: las personas de una reserva cancelada vuelven al cupo disponible.
+        print(f"  Reserva cancelada. Se liberaron {reserva.getCantidadPersonas()} cupo(s).")
+    else:
+        print("  No se pudo encontrar la reserva en la base de datos.")
+
+
+def todas_las_reservas():
+    return [r for p in catalogo.listarPaquetes() for r in p.getReservas()]
+
+
+def ver_reservas():
+    print("\nReservas de todos los clientes")
+    reservas = todas_las_reservas()
+    if not reservas:
+        print("  No hay reservas registradas.")
+    for r in reservas:
+        cliente = r.getCliente()
+        # R17: el RUT y el teléfono se muestran enmascarados en los listados.
+        print(f"  - {cliente.getNombre()} (RUT {cliente.getRutEnmascarado()}, "
+              f"tel. {cliente.getTelefonoEnmascarado()}) · {describir_reserva(r)}")
+
+
+def marcar_reserva_pagada(admin):
+    print("\nMarcar reserva como pagada")
+    pendientes = [r for r in todas_las_reservas() if r.getEstado() == PENDIENTE]
+    reserva = elegir(pendientes, lambda r: f"{r.getCliente().getNombre()} · {describir_reserva(r)}")
+    if reserva is None:
+        return
+    # El pago se verifica fuera del sistema (transferencia); aquí solo se registra.
+    if guardar_estado_reserva(reserva, PAGADA):
+        admin.marcarReservaPagada(reserva)
+        print("  Reserva marcada como pagada.")
+    else:
+        print("  No se pudo encontrar la reserva en la base de datos.")
+
+
 # ---------- Menús ----------
 
 def menu_cliente(cliente, sesion):
@@ -634,9 +778,10 @@ def menu_cliente(cliente, sesion):
         "1": (VER_PAQUETES, ver_paquetes, ()),
         "2": ("Reservar", reservar, (cliente, sesion)),
         "3": ("Mis reservas", ver_mis_reservas, (cliente, sesion)),
-        "4": ("Ver clima de un destino", ver_clima_destino, (cliente, sesion)),
-        "5": ("Ver precio de un paquete en dólares o euros", ver_precio_en_moneda, (cliente, sesion)),
-        "6": ("Cerrar sesión", cerrar_sesion_cliente, ()),
+        "4": ("Cancelar una reserva", cancelar_reserva, (cliente, sesion)),
+        "5": ("Ver clima de un destino", ver_clima_destino, (cliente, sesion)),
+        "6": ("Ver precio de un paquete en dólares o euros", ver_precio_en_moneda, (cliente, sesion)),
+        "7": ("Cerrar sesión", cerrar_sesion_cliente, ()),
     }
     ejecutar_menu("Menú cliente", opciones, "Cerrar sesión y volver")
     sesion.cerrar()
@@ -651,11 +796,15 @@ def menu_administrador(admin, sesion):
     opciones = {
         "1": ("Listar destinos", listar_destinos, ()),
         "2": ("Registrar destino", registrar_destino, ()),
-        "3": ("Actualizar costo de destino", actualizar_costo_destino, ()),
+        "3": ("Modificar destino", modificar_destino, ()),
         "4": ("Retirar destino", retirar_destino, ()),
         "5": ("Crear paquete", crear_paquete, (admin,)),
-        "6": (VER_PAQUETES, ver_paquetes, ()),
-        "7": ("Ver clima de un destino", ver_clima_destino, (admin, sesion)),
+        "6": ("Completar paquete en borrador", completar_borrador, ()),
+        "7": ("Eliminar paquete", eliminar_paquete, ()),
+        "8": (VER_PAQUETES, ver_paquetes, ()),
+        "9": ("Ver reservas", ver_reservas, ()),
+        "10": ("Marcar reserva como pagada", marcar_reserva_pagada, (admin,)),
+        "11": ("Ver clima de un destino", ver_clima_destino, (admin, sesion)),
     }
     ejecutar_menu("Menú administrador", opciones, "Cerrar sesión y volver")
     sesion.cerrar()

@@ -272,3 +272,42 @@ sin duplicados. Se creó un paquete por entrada redirigida y quedó publicado; a
 Esc, no quedó en la base de datos. Teclas simuladas comprobaron que borrar, las flechas, el límite de
 largo, los asteriscos y Esc funcionan como antes. La regex nueva acepta los mismos correos válidos
 y responde al instante con una entrada maliciosa larga.
+
+## Unidad 4: CRUD completo y acceso seguro (4.1.4 y 4.1.5)
+
+**Qué se pidió:** revisar el código contra la guía de la Unidad 4 y corregir lo que faltaba para
+cumplir los criterios 4.1.4 (CRUD operativo, respetar el UML) y 4.1.5 (acceso seguro).
+
+**Revisión del código existente:** los destinos solo permitían cambiar el costo; los paquetes y las
+reservas solo se podían crear y listar. Los métodos `cancelar()`, `marcarReservaPagada()`,
+`getRutEnmascarado()` y `getTelefonoEnmascarado()` estaban en el UML y en las clases, pero el menú
+nunca los usaba. `database.py` ya tenía `actualizar_reserva()` sin uso. La contraseña aceptaba claves
+como `aaaaaaaa` y PBKDF2 usaba 200.000 iteraciones, menos de lo que recomienda hoy OWASP.
+
+**Resultado:**
+- *Destinos:* "Modificar destino" reemplaza a "Actualizar costo" y permite cambiar nombre, zona,
+  descripción, duración o costo. El nombre nuevo se revisa contra R1 con
+  `Catalogo.existeNombreDestino()`.
+- *Paquetes:* "Completar paquete en borrador" agrega destinos y lo publica; "Eliminar paquete" borra
+  uno sin reservas, con confirmación s/n.
+- *Reservas:* el cliente cancela una reserva pendiente antes de la salida y el cupo se libera (R14).
+  El administrador ve todas las reservas, con el RUT y el teléfono enmascarados (R17), y marca una
+  como pagada. El estado se guarda primero en la base de datos y después en el objeto, para que
+  ambos no queden distintos si falla SQLite.
+- *Seguridad:* una clave nueva debe combinar letras y números. PBKDF2 pasó a 600.000 iteraciones,
+  y el número queda guardado con el hash (`iteraciones$sal$hash`), así las cuentas antiguas se
+  siguen verificando con 200.000.
+- Los métodos nuevos que no están en el UML (`actualizarInformacion`, `getReservas`,
+  `listarPaquetes`, `existeNombreDestino`) llevan un comentario que lo indica, como los anteriores.
+
+**Decisiones propias (supuestos del caso):** solo se cancela una reserva pendiente, porque una
+pagada implica una devolución y el pago está fuera del alcance. Un paquete publicado no se modifica,
+porque su precio quedó fijado (R7). Un paquete con reservas no se elimina, para conservar el
+historial de los clientes; además, la base de datos lo impide con `ON DELETE RESTRICT`.
+
+**Validación ejecutada:** con una base de datos temporal y los datos de prueba se comprobó que:
+cambiar la zona y el costo se guarda; un nombre repetido se rechaza; completar el borrador lo
+publica; un paquete con reservas no se elimina y uno sin reservas solo se elimina tras responder
+`s`; al cancelar una reserva el cupo pasa de 18 a 20 y ya no aparece como cancelable; marcar como
+pagada queda guardado; y al recargar desde la base de datos todos los estados se mantienen. También
+se verificó que un hash antiguo sigue validando y que `aaaaaaaa` y `12345678` se rechazan como clave.

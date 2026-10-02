@@ -10,7 +10,10 @@ import secrets
 from datetime import date, datetime, timedelta
 
 DURACION_SESION = timedelta(minutes=30)
-ITERACIONES = 200_000
+# Recomendación actual de OWASP para PBKDF2-SHA256. Los hashes antiguos (sin el número de
+# iteraciones al inicio) se crearon con 200.000 y se siguen verificando con ese valor.
+ITERACIONES = 600_000
+ITERACIONES_ANTERIORES = 200_000
 
 # Estados de una reserva.
 PENDIENTE = "pendiente"
@@ -73,8 +76,14 @@ class Usuario:
         return self.__contrasenaHash
 
     def verificarContrasena(self, clave: str) -> bool:
-        sal_hex, hash_guardado = self.__contrasenaHash.split("$")
-        hash_nuevo = self.__calcularHash(clave, bytes.fromhex(sal_hex))
+        partes = self.__contrasenaHash.split("$")
+        if len(partes) == 2:
+            iteraciones = ITERACIONES_ANTERIORES
+            sal_hex, hash_guardado = partes
+        else:
+            iteraciones = int(partes[0])
+            sal_hex, hash_guardado = partes[1], partes[2]
+        hash_nuevo = self.__calcularHash(clave, bytes.fromhex(sal_hex), iteraciones)
         return hmac.compare_digest(hash_nuevo, hash_guardado)
 
     def iniciarSesion(self, clave: str):
@@ -86,12 +95,13 @@ class Usuario:
         return sesion
 
     def __hashear(self, clave: str) -> str:
+        # Formato guardado: iteraciones$sal$hash
         sal = os.urandom(16)
-        return sal.hex() + "$" + self.__calcularHash(clave, sal)
+        return f"{ITERACIONES}${sal.hex()}${self.__calcularHash(clave, sal, ITERACIONES)}"
 
     @staticmethod
-    def __calcularHash(clave: str, sal: bytes) -> str:
-        return hashlib.pbkdf2_hmac("sha256", clave.encode("utf-8"), sal, ITERACIONES).hex()
+    def __calcularHash(clave: str, sal: bytes, iteraciones: int) -> str:
+        return hashlib.pbkdf2_hmac("sha256", clave.encode("utf-8"), sal, iteraciones).hex()
 
 
 class Cliente(Usuario):
@@ -184,6 +194,14 @@ class Destino:
         self.__fechaActualizacion = date.today()
         return True
 
+    def actualizarInformacion(self, nombre, zona, descripcion, duracionDias) -> None:
+        # No está en el UML: permite modificar los datos del destino además del costo base.
+        self.__nombre = nombre
+        self.__zona = zona
+        self.__descripcion = descripcion
+        self.__duracionDias = duracionDias
+        self.__fechaActualizacion = date.today()
+
     def marcarNoDisponible(self) -> None:
         self.__disponible = False
 
@@ -236,7 +254,9 @@ class Reserva:
             self.__estado = PAGADA
 
     def cancelar(self) -> None:
-        self.__estado = CANCELADA
+        # Supuesto: solo una reserva pendiente se cancela; una pagada requiere devolución (fuera del alcance).
+        if self.__estado == PENDIENTE:
+            self.__estado = CANCELADA
 
 
 class Paquete:
@@ -293,6 +313,10 @@ class Paquete:
 
     def getDestinos(self) -> list:
         return list(self.__destinos)
+
+    def getReservas(self) -> list:
+        # No está en el UML: el administrador lista las reservas y revisa si el paquete se puede eliminar.
+        return list(self.__reservas)
 
     def agregarReservaPersistida(self, reserva) -> None:
         self.__reservas.append(reserva)
@@ -369,11 +393,15 @@ class Catalogo:
 
     def registrarDestino(self, destino) -> bool:
         # R1: el nombre del destino no se repite en el catálogo.
-        nombre = destino.getNombre().strip().lower()
-        if any(d.getNombre().strip().lower() == nombre for d in self.__destinos):
+        if self.existeNombreDestino(destino.getNombre()):
             return False
         self.__destinos.append(destino)
         return True
+
+    def existeNombreDestino(self, nombre, excepto=None) -> bool:
+        # No está en el UML: R1 también se revisa al cambiar el nombre de un destino.
+        nombre = nombre.strip().lower()
+        return any(d.getNombre().strip().lower() == nombre for d in self.__destinos if d is not excepto)
 
     def retirarDestino(self, destino) -> None:
         # R8: si está en algún paquete, se marca no disponible; si no, se elimina.
@@ -394,6 +422,10 @@ class Catalogo:
 
     def destinoIncluidoEnPaquete(self, destino) -> bool:
         return any(paquete.contieneDestino(destino) for paquete in self.__paquetes)
+
+    def listarPaquetes(self) -> list:
+        # No está en el UML: el administrador también ve borradores y paquetes ya vencidos.
+        return list(self.__paquetes)
 
     def listarPaquetesVigentes(self, hoy) -> list:
         return [p for p in self.__paquetes if p.estaVigente(hoy)]

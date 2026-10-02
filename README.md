@@ -18,6 +18,7 @@ aplicada al caso de Viajes Aventura (`caso 1 proyecto final.pdf`).
 | 3.1.1 | Consumo de servicios externos (APIs) | Hecho |
 | 3.1.2 | Mecanismos básicos de seguridad | Hecho |
 | 3.1.3 | Manejo de errores en servicios externos | Hecho |
+| 4.1.4 / 4.1.5 | Código de la guía Unidad 4 (CRUD completo y acceso seguro) | Hecho |
 
 ## Estructura
 
@@ -52,8 +53,8 @@ programa. La base de datos se crea automáticamente y está excluida del control
 
 `database.py` utiliza `sqlite3`, incluida en Python, con tablas relacionadas para usuarios, destinos,
 paquetes, destinos de cada paquete y reservas. La capa de datos ofrece operaciones de creación,
-consulta, actualización y eliminación; el menú permite registrar, consultar, actualizar el costo y
-retirar destinos, además de registrar usuarios, paquetes y reservas. Las asociaciones y claves
+consulta, actualización y eliminación, y el menú las usa para destinos, paquetes y reservas (ver
+"Gestión completa" más abajo), además de registrar usuarios. Las asociaciones y claves
 foráneas conservan la relación entre registros. Las contraseñas persistidas siguen siendo hashes,
 no texto plano.
 
@@ -68,7 +69,7 @@ fallida en el estado en memoria.
 
 La navegación de los menús principal, cliente y administrador usa el despachador común
 `ejecutar_menu()`: `0` regresa al menú anterior o sale, y las opciones inválidas permiten volver a
-elegir. En el menú del cliente, la última opción numerada es `6. Cerrar sesión`; al seleccionarla se
+elegir. En el menú del cliente, la última opción numerada es `7. Cerrar sesión`; al seleccionarla se
 cierra la sesión y se regresa al menú principal. En cualquier formulario o menú, la tecla `Esc` cancela la acción y vuelve al menú anterior. Las opciones nuevas se agregan al mapa del
 menú y reciben automáticamente el mismo comportamiento. Si se cancela la creación de un paquete, se
 elimina también el borrador parcial.
@@ -78,7 +79,7 @@ elimina también el borrador parcial.
 Todo dato ingresado pasa por funciones de `interface.py` que limpian caracteres de control y códigos
 ANSI, unen espacios repetidos, normalizan acentos y aplican largos máximos. El RUT se valida con su
 dígito verificador (sin puntos, ej. 19616711-0) y el teléfono como celular chileno (sin espacios, ej.
-+56912345678). La contraseña se escribe con asteriscos y se confirma al crear la cuenta. Límites: contraseña de 8 a 64 caracteres, costo
++56912345678). La contraseña se escribe con asteriscos y se confirma al crear la cuenta. Límites: contraseña de 8 a 64 caracteres con letras y números, costo
 hasta $50.000.000, duración hasta 60 días, cupo hasta 100 personas y margen hasta 100 %.
 
 Los nombres de clientes, destinos, paquetes y administradores se solicitan con `pedir_nombre()`;
@@ -95,12 +96,14 @@ si contienen algún dígito, se rechazan y se vuelven a pedir. Se aceptan nombre
   dólar y del euro y convierte el precio de un paquete.
 
 Del JSON se toman solo los datos útiles y se comprueba que tengan sentido (que existan y estén en un
-rango válido) antes de mostrarlos. Las consultas están en el menú del cliente (opciones 4 y 5) y la de
-clima también en el del administrador (opción 7), así que solo se usan después de iniciar sesión.
+rango válido) antes de mostrarlos. Las consultas están en el menú del cliente (opciones 5 y 6) y la de
+clima también en el del administrador (opción 11), así que solo se usan después de iniciar sesión.
 
 ## Seguridad (3.1.2)
 
-- **Contraseñas:** se guardan como hash PBKDF2-SHA256 con sal, nunca en texto plano (R10).
+- **Contraseñas:** se guardan como hash PBKDF2-SHA256 con sal y 600.000 iteraciones (recomendación
+  de OWASP), nunca en texto plano (R10). El número de iteraciones queda guardado junto al hash, así
+  que las cuentas creadas antes con 200.000 siguen funcionando.
 - **Bloqueo por intentos:** tras 3 intentos fallidos con un mismo correo, ese correo no puede
   iniciar sesión por 1 minuto. Se cuenta igual si el correo no existe, para no revelar cuáles están
   registrados.
@@ -123,6 +126,37 @@ comprueba errores HTTP y normaliza fallos de conexión, JSON y respuestas con fo
 `ErrorServicioExterno`. También valida los datos recibidos: coordenadas, valores finitos de clima,
 humedad, serie, fecha y tipo de cambio positivo. La interfaz muestra avisos genéricos si falla el
 clima o el tipo de cambio y vuelve al menú sin interrumpir el programa.
+
+## Gestión completa (Unidad 4: 4.1.4 y 4.1.5)
+
+Para cumplir la guía de la Unidad 4, cada entidad tiene sus operaciones CRUD desde el menú:
+
+| Entidad | Crear | Consultar | Modificar | Eliminar |
+|---|---|---|---|---|
+| Destino | Registrar destino | Listar destinos | Modificar destino (nombre, zona, descripción, duración o costo) | Retirar destino (R8) |
+| Paquete | Crear paquete | Ver paquetes vigentes | Completar paquete en borrador | Eliminar paquete |
+| Reserva | Reservar | Mis reservas / Ver reservas | Marcar como pagada | Cancelar una reserva |
+
+Menú del administrador: 1 Listar destinos · 2 Registrar destino · 3 Modificar destino · 4 Retirar
+destino · 5 Crear paquete · 6 Completar paquete en borrador · 7 Eliminar paquete · 8 Ver paquetes
+vigentes · 9 Ver reservas · 10 Marcar reserva como pagada · 11 Ver clima de un destino.
+
+Menú del cliente: 1 Ver paquetes vigentes · 2 Reservar · 3 Mis reservas · 4 Cancelar una reserva ·
+5 Ver clima · 6 Ver precio en dólares o euros · 7 Cerrar sesión.
+
+Supuestos adoptados (el caso no los define):
+
+- **Desistir de una reserva:** el cliente puede cancelar una reserva *pendiente* mientras el paquete
+  no haya salido; las personas vuelven al cupo disponible (R14). Una reserva pagada no se cancela
+  desde el sistema, porque implicaría una devolución y el pago está fuera del alcance.
+- **Pago:** se verifica fuera del sistema (transferencia); el administrador solo lo registra con
+  "Marcar reserva como pagada".
+- **Modificar paquetes:** solo un borrador recibe más destinos y se publica. Uno publicado no cambia,
+  porque su precio queda fijado (R7).
+- **Eliminar paquetes:** solo si no tiene reservas, para conservar el historial de los clientes.
+- **Datos sensibles en listados:** en "Ver reservas" el RUT y el teléfono se muestran enmascarados
+  (solo los 3 últimos caracteres, R17).
+- **Cambiar el nombre de un destino:** tampoco puede repetir otro nombre del catálogo (R1).
 
 ## Calidad de código (SonarCloud)
 
