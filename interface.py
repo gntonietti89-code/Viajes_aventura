@@ -200,6 +200,14 @@ def pedir_texto(mensaje, largo_maximo=LARGO_TEXTO):
             return texto
 
 
+def pedir_nombre(mensaje="Nombre: "):
+    while True:
+        nombre = pedir_texto(mensaje)
+        if not any(caracter.isdigit() for caracter in nombre):
+            return nombre
+        print("  El nombre no puede contener números.")
+
+
 def pedir_correo(mensaje="Correo: "):
     while True:
         correo = pedir_texto(mensaje, LARGO_CORREO).lower()
@@ -376,7 +384,7 @@ def registrar_cliente():
     if buscar_usuario(correo):
         print("  Ese correo ya está registrado.")
         return
-    nombre = pedir_texto("Nombre: ")
+    nombre = pedir_nombre()
     rut = pedir_rut()
     telefono = pedir_telefono()
     clave = pedir_clave_nueva()
@@ -482,7 +490,7 @@ def ver_mis_reservas(cliente, sesion):
 
 def registrar_destino():
     print("\nNuevo destino")
-    destino = Destino(None, pedir_texto("Nombre: "), pedir_texto("Zona: "),
+    destino = Destino(None, pedir_nombre(), pedir_texto("Zona: "),
                       pedir_texto("Descripción: ", LARGO_DESCRIPCION),
                       pedir_entero("Duración en días: ", minimo=1, maximo=DURACION_MAX),
                       pedir_entero("Costo base por persona: ", minimo=1, maximo=COSTO_MAX))
@@ -547,7 +555,7 @@ def actualizar_costo_destino():
 
 def crear_paquete(admin):
     print("\nNuevo paquete")
-    nombre = pedir_texto("Nombre: ")
+    nombre = pedir_nombre()
     salida = pedir_fecha("Fecha de salida")
     while salida <= date.today():
         print("  La fecha de salida debe ser posterior a hoy.")
@@ -704,7 +712,7 @@ def crear_administrador_inicial():
     while buscar_usuario(correo):
         print("  Ese correo ya está registrado.")
         correo = pedir_correo()
-    admin = Administrador(None, pedir_texto("Nombre: "), correo, pedir_clave_nueva(), catalogo)
+    admin = Administrador(None, pedir_nombre(), correo, pedir_clave_nueva(), catalogo)
     admin.asignarId(base_datos.crear_usuario(
         admin.getNombre(), admin.getCorreo(), admin.getContrasenaHash(), "administrador",
     ))
