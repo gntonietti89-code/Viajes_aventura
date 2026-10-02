@@ -29,7 +29,6 @@ Viajes_aventura/
 ├── cifrado.py         Cifrado del RUT y el teléfono (Fernet); llave en .env
 ├── servicios_externos.py  Consumo de APIs: clima (Open-Meteo) y tipo de cambio (mindicador.cl)
 ├── datos_prueba.py    Carga clientes, destinos, paquetes y reservas de prueba
-├── .sonarcloud.properties  Configuración del análisis de calidad en SonarCloud
 ├── requirements.txt   Librerías externas (requests, cryptography, python-dotenv)
 ├── uml.png            Diagrama de clases UML oficial
 ├── validacion_ia.md   Registro del uso de IA
@@ -129,7 +128,7 @@ clima o el tipo de cambio y vuelve al menú sin interrumpir el programa.
 
 El repositorio se analiza con SonarCloud. Las funciones largas se dividieron en funciones más
 pequeñas y los textos repetidos se reemplazaron por constantes. Las reglas de nombres de Python
-(snake_case) se ignoran en `.sonarcloud.properties`, porque las clases siguen en camelCase el
+(snake_case) se ignoran en la configuración del proyecto en SonarCloud, porque las clases siguen en camelCase el
 diagrama UML oficial (`getNombre`, `costoBase`, etc.).
 
 ## Requisitos

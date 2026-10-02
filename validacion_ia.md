@@ -263,7 +263,9 @@ una que no retrocede (*backtracking*): ahora rechaza dominios con dos puntos seg
 "TODO" era un falso positivo: el comentario decía "Todo texto cifrado…" en español.
 
 Los 85 avisos de nombres en camelCase no se corrigieron, por decisión del grupo: los nombres siguen
-el UML oficial (`uml.png`). Esas tres reglas (S100, S116 y S117) se ignoran en `.sonarcloud.properties`.
+el UML oficial (`uml.png`). Esas tres reglas (S100, S116 y S117) se ignoran en la configuración del proyecto en la web de
+SonarCloud (Analysis Scope > Ignore Issues on Multiple Criteria), porque el análisis automático no
+lee esa exclusión desde un archivo del repositorio.
 
 **Validación ejecutada:** con una base de datos temporal se cargaron los datos de prueba dos veces,
 sin duplicados. Se creó un paquete por entrada redirigida y quedó publicado; al cancelar otro con
