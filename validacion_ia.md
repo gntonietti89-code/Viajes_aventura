@@ -235,3 +235,16 @@ incorrecto, datos de clima con estructura inválida y una serie de tipo de cambi
 controlado. También se verificó que ambas opciones de la interfaz muestran su aviso y regresan sin
 propagar la excepción. No se requirió conexión real a las APIs para estas pruebas.
 
+## Validación de nombres
+
+**Qué se pidió:** impedir que se ingresen números al solicitar el nombre y aplicar la validación en
+las demás solicitudes de nombre del programa.
+
+**Resultado:** se agregó `pedir_nombre()` en `interface.py` y se usa para los nombres de clientes,
+destinos, paquetes y administradores. Si contiene un dígito, se muestra un aviso y se vuelve a pedir;
+los espacios y las tildes siguen permitidos.
+
+**Validación ejecutada:** una prueba simulada confirmó que `Ana2` se rechaza, que el formulario vuelve
+a solicitar el dato y que `María José` se acepta. También se comprobó que los cuatro formularios usan
+la función común.
+

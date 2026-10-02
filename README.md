@@ -81,6 +81,9 @@ dígito verificador (sin puntos, ej. 19616711-0) y el teléfono como celular chi
 +56912345678). La contraseña se escribe con asteriscos y se confirma al crear la cuenta. Límites: contraseña de 8 a 64 caracteres, costo
 hasta $50.000.000, duración hasta 60 días, cupo hasta 100 personas y margen hasta 100 %.
 
+Los nombres de clientes, destinos, paquetes y administradores se solicitan con `pedir_nombre()`;
+si contienen algún dígito, se rechazan y se vuelven a pedir. Se aceptan nombres con espacios y tildes.
+
 ## Servicios externos (3.1.1)
 
 `servicios_externos.py` consume dos APIs públicas con `requests`. Ninguna pide llave de acceso:
