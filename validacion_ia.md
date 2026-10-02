@@ -330,3 +330,32 @@ mantiene el cálculo del dígito verificador (módulo 11) y el teléfono se guar
 `27489490-3` y `10000013-k` se aceptan. `+56 9 1234 5678`, `(9)1234-5678` y `56912345678` se
 rechazan; `+56912345678` y `912345678` se aceptan. Los RUT y teléfonos de `datos_prueba.py` siguen
 siendo válidos.
+
+## Correcciones de la evaluación de seguridad
+
+**Qué se pidió:** cuatro correcciones puntuales detectadas al revisar el sistema: permitir números en
+el nombre de los paquetes, eliminar los métodos que entregaban el RUT y el teléfono completos,
+evitar que el programa muestre errores internos al cerrarse la entrada o al presionar Ctrl+C, y
+unificar dos métodos duplicados de `Paquete`.
+
+**Resultado:**
+- *Nombres con números:* el paquete del caso "Norte Grande en 5 días" no se podía registrar porque
+  `crear_paquete()` usaba `pedir_nombre()`. Ahora usa `pedir_texto("Nombre: ")`, que acepta dígitos.
+  Por decisión del grupo, `pedir_nombre()` se mantiene para clientes, administradores y destinos: los
+  destinos son lugares reales y ninguno del caso lleva números. Esto modifica lo descrito en
+  "Validación de nombres", donde los paquetes también usaban `pedir_nombre()`.
+- *RUT y teléfono:* se eliminaron `Cliente.getRut()` y `Cliente.getTelefono()`. Ningún punto del
+  sistema los usaba y entregaban el dato sensible completo (R17); `Cliente` queda solo con
+  `getRutEnmascarado()` y `getTelefonoEnmascarado()`. Una búsqueda en todos los `.py` confirmó que
+  nadie los llamaba.
+- *Cierre del programa:* `iniciar()` ahora captura `EOFError` y `KeyboardInterrupt` y muestra
+  "Programa finalizado.", en vez de un traceback con rutas internas. El bloque `finally` sigue
+  cerrando la base de datos.
+- *Métodos duplicados:* se eliminó `Paquete.quitarReservaNoPersistida()`, que solo llamaba a
+  `quitarReservaPersistida()`; `reservar()` usa directamente este último.
+
+**Validación ejecutada:** `python -m py_compile main.py interface.py` sin errores. Con una base de
+datos temporal y los datos de prueba: "Norte Grande en 5 días" se registró y quedó publicado; "Valle 2"
+se rechazó como destino y "Ana2" como nombre de cliente; una reserva de 3 personas sobre el paquete
+nuevo se creó y dejó el cupo en 9. Al ejecutar `iniciar()` con la entrada cerrada y simulando Ctrl+C,
+en ambos casos apareció "Programa finalizado." sin traceback y la conexión quedó cerrada.

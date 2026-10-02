@@ -497,7 +497,7 @@ def reservar(cliente, sesion):
                 reserva.getEstado(), cliente.getId(), paquete.getId(),
             ))
         except sqlite3.Error:
-            paquete.quitarReservaNoPersistida(reserva)
+            paquete.quitarReservaPersistida(reserva)
             cliente.quitarReserva(reserva)
             raise
         print(f"  Reserva creada. Total: {pesos(reserva.getTotal())} (estado: {reserva.getEstado()}).")
@@ -634,7 +634,8 @@ def elegir_destinos_paquete(paquete):
 
 def crear_paquete(admin):
     print("\nNuevo paquete")
-    nombre = pedir_nombre()
+    # Los paquetes son nombres comerciales y pueden llevar números ("Norte Grande en 5 días").
+    nombre = pedir_texto("Nombre: ")
     salida = pedir_fecha("Fecha de salida")
     while salida <= date.today():
         print("  La fecha de salida debe ser posterior a hoy.")
@@ -901,6 +902,8 @@ def iniciar():
         }
         ejecutar_menu("Menú principal", opciones, "Salir")
         print("Hasta luego.")
+    except (EOFError, KeyboardInterrupt):
+        print("\nPrograma finalizado.")
     except VolverMenu:
         print("Configuración inicial cancelada. Puede volver a ejecutar el programa.")
     except sqlite3.Error:

@@ -114,12 +114,6 @@ class Cliente(Usuario):
         # Composición: Cliente 1 -> 0..* Reserva ("realiza").
         self.__reservas = []
 
-    def getRut(self) -> str:
-        return self.__rut
-
-    def getTelefono(self) -> str:
-        return self.__telefono
-
     def getRutEnmascarado(self) -> str:
         return self.__enmascarar(self.__rut)
 
@@ -339,9 +333,6 @@ class Paquete:
     def contieneDestino(self, destino) -> bool:
         # No está en el UML: Catalogo lo necesita para saber si puede eliminar un destino (R8).
         return destino in self.__destinos
-
-    def quitarReservaNoPersistida(self, reserva) -> None:
-        self.quitarReservaPersistida(reserva)
 
     def publicar(self) -> bool:
         if self.__estado != BORRADOR or len(self.__destinos) < MIN_DESTINOS:
