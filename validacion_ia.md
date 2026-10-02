@@ -311,3 +311,22 @@ publica; un paquete con reservas no se elimina y uno sin reservas solo se elimin
 `s`; al cancelar una reserva el cupo pasa de 18 a 20 y ya no aparece como cancelable; marcar como
 pagada queda guardado; y al recargar desde la base de datos todos los estados se mantienen. También
 se verificó que un hash antiguo sigue validando y que `aaaaaaaa` y `12345678` se rechazan como clave.
+
+## Formato estricto de RUT y teléfono
+
+**Qué se pidió:** al probar el programa se vio que `274894903` se aceptaba como RUT, aunque el
+mensaje pide escribirlo con guion. Se pidió exigir el formato indicado, también para el teléfono.
+
+**Revisión del código:** `validar_rut()` quitaba puntos, guiones y espacios antes de validar, y
+`validar_telefono()` quitaba espacios, guiones y paréntesis. Por eso aceptaban formatos distintos de
+los que mostraban los mensajes (aunque el dígito verificador sí se revisaba).
+
+**Resultado:** el RUT solo se acepta como `12345678-9` (7 u 8 dígitos, guion y dígito verificador o
+K, que puede escribirse en minúscula) y el teléfono solo como `+56912345678` o `912345678`. Se
+mantiene el cálculo del dígito verificador (módulo 11) y el teléfono se guarda siempre como
+`+569XXXXXXXX`. Los clientes ya registrados no cambian, porque se guardaron en ese formato.
+
+**Validación ejecutada:** `274894903`, `27.489.490-3`, `27489490 3` y `27489490-4` se rechazan;
+`27489490-3` y `10000013-k` se aceptan. `+56 9 1234 5678`, `(9)1234-5678` y `56912345678` se
+rechazan; `+56912345678` y `912345678` se aceptan. Los RUT y teléfonos de `datos_prueba.py` siguen
+siendo válidos.

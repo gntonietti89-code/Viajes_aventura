@@ -107,11 +107,14 @@ def limpiar_texto(texto):
 
 
 def validar_rut(texto):
-    """Devuelve el RUT como 12345678-9 si el dígito verificador (módulo 11) es correcto; si no, None."""
-    rut = texto.replace(".", "").replace("-", "").replace(" ", "").upper()
-    if not re.fullmatch(r"\d{7,8}[\dK]", rut):
+    """Exige el formato 12345678-9 (sin puntos, con guion) y un dígito verificador (módulo 11) correcto.
+
+    Devuelve el RUT con la K en mayúscula; si no es válido, None.
+    """
+    rut = texto.upper()
+    if not re.fullmatch(r"\d{7,8}-[\dK]", rut):
         return None
-    cuerpo, dv = rut[:-1], rut[-1]
+    cuerpo, dv = rut.split("-")
     suma = sum(int(d) * f for d, f in zip(reversed(cuerpo), [2, 3, 4, 5, 6, 7] * 2))
     esperado = {10: "K", 11: "0"}.get(11 - suma % 11, str(11 - suma % 11))
     return f"{cuerpo}-{dv}" if dv == esperado else None
@@ -125,10 +128,9 @@ def validar_ciudad(texto):
 
 
 def validar_telefono(texto):
-    """Acepta un celular chileno (+56 9 1234 5678 o 912345678) y lo devuelve como +56912345678."""
-    numero = re.sub(r"[\s\-()]", "", texto)
-    if re.fullmatch(r"(\+?56)?9\d{8}", numero):
-        return "+56" + numero[-9:]
+    """Acepta un celular chileno escrito sin espacios (+56912345678 o 912345678) y lo devuelve como +56912345678."""
+    if re.fullmatch(r"(\+56)?9\d{8}", texto):
+        return "+56" + texto[-9:]
     return None
 
 
