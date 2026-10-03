@@ -3,8 +3,8 @@
 Sistema de gestión de destinos, paquetes turísticos y reservas para la agencia Viajes Aventura
 (caso 1 · TI3V21 Programación Orientada a Objeto Seguro · INACAP Valparaíso).
 
-El desarrollo sigue, punto por punto, la guía de evaluación de las Unidades 2 y 3 (`seguridad.pdf`),
-aplicada al caso de Viajes Aventura (`caso 1 proyecto final.pdf`).
+El desarrollo sigue, punto por punto, la guía de evaluación de las Unidades 2 y 3,
+aplicada al caso Viajes Aventura.
 
 ## Avance
 
@@ -33,8 +33,6 @@ Viajes_aventura/
 ├── requirements.txt   Librerías externas (requests, cryptography, python-dotenv)
 ├── uml.png            Diagrama de clases UML oficial
 ├── validacion_ia.md   Registro del uso de IA
-├── caso 1 proyecto final.pdf   Caso Viajes Aventura
-├── seguridad.pdf      Guía de evaluación (Unidades 2 y 3)
 └── README.md
 ```
 
