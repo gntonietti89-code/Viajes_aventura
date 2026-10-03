@@ -488,7 +488,12 @@ def reservar(cliente, sesion):
     paquete = elegir(catalogo.listarPaquetesVigentes(date.today()), describir_paquete)
     if paquete is None:
         return
-    personas = pedir_entero("Cantidad de personas: ", minimo=1, maximo=CUPO_MAX)
+    # Advierte si el cliente ya tiene una reserva activa en el mismo paquete.
+    if cliente.tieneReservaActiva(paquete):
+        print("  Ya tiene una reserva activa en este paquete.")
+        if not confirmar("¿Desea hacer otra reserva en el mismo paquete?"):
+            return
+    personas =pedir_entero("Cantidad de personas: ", minimo=1, maximo=CUPO_MAX)
     try:
         reserva = paquete.reservar(cliente, personas, date.today())
         try:

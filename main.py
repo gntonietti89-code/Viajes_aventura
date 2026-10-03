@@ -127,6 +127,10 @@ class Cliente(Usuario):
         if reserva in self.__reservas:
             self.__reservas.remove(reserva)
 
+    def tieneReservaActiva(self, paquete) -> bool:
+        # Una reserva activa es una pendiente o pagada (no cancelada) sobre el mismo paquete.
+        return any(r.getPaquete() is paquete and r.getEstado() != CANCELADA for r in self.__reservas)
+
     def listarMisReservas(self, sesion) -> list:
         # R11: solo un cliente autenticado ve sus reservas, y únicamente las suyas.
         if not sesion.esValida(datetime.now()) or sesion.getUsuario() is not self:
@@ -189,7 +193,7 @@ class Destino:
         return True
 
     def actualizarInformacion(self, nombre, zona, descripcion, duracionDias) -> None:
-        # No está en el UML: permite modificar los datos del destino además del costo base.
+        # Permite modificar los datos del destino además del costo base.
         self.__nombre = nombre
         self.__zona = zona
         self.__descripcion = descripcion
@@ -236,11 +240,11 @@ class Reserva:
         return self.__estado
 
     def getCantidadPersonas(self) -> int:
-        # No está en el UML: Paquete lo necesita para calcular el cupo disponible (R14).
+        # Paquete lo necesita para calcular el cupo disponible (R14).
         return self.__cantidadPersonas
 
     def getPaquete(self):
-        # No está en el UML: la interfaz lo usa para mostrar el nombre del paquete reservado.
+        # La interfaz lo usa para mostrar el nombre del paquete reservado.
         return self.__paquete
 
     def marcarPagada(self) -> None:
@@ -286,11 +290,11 @@ class Paquete:
         self.__id = id
 
     def getNombre(self) -> str:
-        # No está en el UML: la interfaz lo usa para listar los paquetes.
+        # La interfaz lo usa para listar los paquetes.
         return self.__nombre
 
     def getFechaSalida(self) -> date:
-        # No está en el UML: la interfaz lo usa para listar los paquetes.
+        # La interfaz lo usa para listar los paquetes.
         return self.__fechaSalida
 
     def getFechaRegreso(self) -> date:
@@ -309,7 +313,7 @@ class Paquete:
         return list(self.__destinos)
 
     def getReservas(self) -> list:
-        # No está en el UML: el administrador lista las reservas y revisa si el paquete se puede eliminar.
+        # El administrador lista las reservas y revisa si el paquete se puede eliminar.
         return list(self.__reservas)
 
     def agregarReservaPersistida(self, reserva) -> None:
@@ -331,7 +335,7 @@ class Paquete:
         return True
 
     def contieneDestino(self, destino) -> bool:
-        # No está en el UML: Catalogo lo necesita para saber si puede eliminar un destino (R8).
+        # Catalogo lo necesita para saber si puede eliminar un destino (R8).
         return destino in self.__destinos
 
     def publicar(self) -> bool:
@@ -390,7 +394,7 @@ class Catalogo:
         return True
 
     def existeNombreDestino(self, nombre, excepto=None) -> bool:
-        # No está en el UML: R1 también se revisa al cambiar el nombre de un destino.
+        # R1 también se revisa al cambiar el nombre de un destino.
         nombre = nombre.strip().lower()
         return any(d.getNombre().strip().lower() == nombre for d in self.__destinos if d is not excepto)
 
@@ -415,7 +419,7 @@ class Catalogo:
         return any(paquete.contieneDestino(destino) for paquete in self.__paquetes)
 
     def listarPaquetes(self) -> list:
-        # No está en el UML: el administrador también ve borradores y paquetes ya vencidos.
+        # El administrador también ve borradores y paquetes ya vencidos.
         return list(self.__paquetes)
 
     def listarPaquetesVigentes(self, hoy) -> list:

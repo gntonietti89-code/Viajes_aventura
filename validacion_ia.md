@@ -359,3 +359,31 @@ datos temporal y los datos de prueba: "Norte Grande en 5 días" se registró y q
 se rechazó como destino y "Ana2" como nombre de cliente; una reserva de 3 personas sobre el paquete
 nuevo se creó y dejó el cupo en 9. Al ejecutar `iniciar()` con la entrada cerrada y simulando Ctrl+C,
 en ambos casos apareció "Programa finalizado." sin traceback y la conexión quedó cerrada.
+
+## Advertencia de reserva repetida
+
+**Qué se pidió:** que el sistema advierta cuando un cliente intenta reservar un paquete en el que ya
+tiene una reserva activa, y que la advertencia deje de aparecer una vez pasada la fecha del viaje,
+para que un cliente que vuelve pueda reservar de nuevo sin aviso.
+
+**Resultado:**
+- Se agregó `Cliente.tieneReservaActiva(paquete)`, que indica si el cliente tiene una reserva
+  pendiente o pagada (no cancelada) sobre ese mismo paquete. Este método sí está en el UML.
+- `reservar()` lo consulta después de elegir el paquete y antes de pedir la cantidad de personas: si
+  hay una reserva activa muestra "Ya tiene una reserva activa en este paquete." y pregunta con
+  `confirmar()` si desea hacer otra. Si responde "n", vuelve al menú sin reservar.
+- No hizo falta revisar la fecha aparte: por R15 un paquete cuya fecha de salida ya pasó no se ofrece
+  para reservar, y las fechas de un paquete no se pueden modificar. Un cliente que vuelve reserva un
+  paquete nuevo, aunque tenga el mismo nombre, y la reserva antigua no lo afecta. Así se mantiene la
+  firma del método tal como aparece en el UML.
+- Se reemplazó `uml.png` por el diagrama actualizado, que ya incluye `tieneReservaActiva()` y los
+  métodos que antes faltaban. Por eso se quitó la frase "No está en el UML" de nueve comentarios de
+  `main.py`, dejando solo la explicación de para qué sirve cada método.
+
+**Validación ejecutada:** `python -m py_compile main.py interface.py` sin errores. Sobre una copia
+temporal de la base de datos y con un cliente nuevo: la primera reserva se creó sin advertencia; la
+segunda sobre el mismo paquete mostró la advertencia, con "n" no se creó y con "s" sí; tras cancelar
+sus reservas, una nueva reserva no mostró la advertencia; y un cliente con una reserva pagada en un
+paquete antiguo del mismo nombre reservó el paquete vigente sin advertencia. La segunda reserva se
+probó después de recargar los datos desde SQLite, lo que confirma que la comparación funciona con los
+objetos cargados desde la base de datos.
