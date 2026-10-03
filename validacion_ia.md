@@ -2,7 +2,7 @@
 
 Herramienta: Claude Code (extensión de VS Code), modelo Claude Opus 5.5.
 
-## 2.1.1 — Implementar el modelo UML en código Python
+## Implementar el modelo UML en código Python
 
 **Qué se pidió:** pasar el diagrama de clases UML oficial a código Python.
 
@@ -12,9 +12,9 @@ nombres, atributos privados, métodos y relaciones del UML. Se probó con los da
 «Norte Grande» da 516.000 por persona y se rechazan las reservas sin cupo, con 0 personas o con la
 fecha de salida vencida.
 
-## 2.1.2 — Aplicar principios de programación orientada a objetos
+## Aplicar principios de programación orientada a objetos
 
-**Qué se pidió:** revisar el código del 2.1.1 según encapsulamiento, herencia/abstracción y no
+**Qué se pidió:** revisar el código del modelo UML implementado según encapsulamiento, herencia/abstracción y no
 duplicación, manteniendo la coherencia con el UML.
 
 **Resultado:** los atributos ya eran privados y solo se acceden con métodos; las listas internas se
@@ -32,10 +32,10 @@ registrarse, iniciar sesión), menú del administrador (destinos y paquetes) y m
 y ver sus reservas). Las contraseñas se piden ocultas y no hay claves escritas en el código: el
 administrador se crea al iniciar. Se agregaron 3 métodos de consulta que no están en el UML
 (`Paquete.getNombre()`, `Paquete.getFechaSalida()`, `Reserva.getPaquete()`) porque el menú los necesita
-para mostrar la información. En esa etapa previa al criterio 2.1.3, los datos se perdían al cerrar el
+para mostrar la información. En esa etapa, antes de integrar la base de datos, los datos se perdían al cerrar el
 programa; la siguiente sección documenta la integración de SQLite.
 
-## 2.1.3 — Integrar conexión a base de datos y CRUD
+## Integrar conexión a base de datos y CRUD
 
 **Qué se pidió:** conectar la solución a una base de datos mediante una librería oficial de Python y
 realizar operaciones de creación, consulta, actualización y eliminación.
@@ -59,11 +59,11 @@ eliminación de usuarios, destinos, paquetes y reservas, además del vínculo pa
 reconstruyó la aplicación desde SQLite y comprobó el inicio de sesión con el hash almacenado, el precio
 publicado, el cupo y la reserva; también confirmó que una actualización de costo queda persistida.
 
-**Alcance en esa etapa:** la integración cubría el criterio 2.1.3; en ese momento aún faltaban el
-manejo de errores de base de datos y las validaciones del criterio 2.1.4. No se abordó el consumo de
-APIs de la Unidad 3.
+**Alcance en esa etapa:** la integración cubría la base de datos y el CRUD; en ese momento aún faltaban el
+manejo de errores de base de datos y las validaciones de entrada. No se abordó el consumo de
+APIs.
 
-## 2.1.4 — Manejo de errores y validaciones
+## Manejo de errores y validaciones
 
 **Qué se pidió:** controlar excepciones para proteger la estabilidad del programa y validar los datos
 ingresados antes de usarlos.
@@ -87,7 +87,7 @@ errores inducidos no interrumpen el menú ni dejan registros fallidos en memoria
 volver desde menús y formularios. También se probó una opción futura añadida al mapa común, la
 cancelación de contraseña, el cierre de sesión con la opción 4 y el rollback de un paquete parcialmente
 creado. Un flujo válido permite crear un paquete, reservar y recargar los datos desde SQLite. El trabajo
-se limita al criterio 2.1.4; no incluye consumo de APIs de la Unidad 3.
+se limita al manejo de errores y validaciones; no incluye consumo de APIs.
 
 ## Sanitización de entradas
 
@@ -133,13 +133,13 @@ al menú principal.
 `Destino «nombre» agregado (N de 5).` El error que antes era uno solo ahora se separa en dos casos:
 destino repetido o paquete con 5 destinos.
 
-## 2.1.5 — Validación crítica del código generado con IA
+## Validación crítica del código generado con IA
 
 **Qué se pidió:** revisar el código generado con IA, identificar errores o inconsistencias y
 justificar si se adoptó, modificó o descartó, con criterios de seguridad, eficiencia y coherencia.
 
-**Herramientas:** Claude Code (2.1.1, 2.1.2, sanitización, contraseña, navegación y este punto) y
-GitHub Copilot (2.1.3 y 2.1.4).
+**Herramientas:** Claude Code (modelo UML, principios de POO, sanitización, contraseña, navegación y este punto) y
+GitHub Copilot (base de datos y CRUD, manejo de errores y validaciones).
 
 **Adoptado sin cambios:**
 - Hash de contraseñas con PBKDF2-SHA256, sal aleatoria y 200.000 iteraciones, y comparación con
@@ -174,7 +174,7 @@ anterior a la salida, cupo 0, margen −20 % y reservar con una sesión vencida 
 ahora todos se rechazan, los datos válidos se siguen aceptando y la base de datos existente carga
 sin errores.
 
-## 3.1.1 — Consumo de servicios externos mediante APIs
+## Consumo de servicios externos mediante APIs
 
 **Qué se pidió:** consumir APIs externas con una librería oficial (`requests`), procesar el JSON y
 usar solo los datos relevantes, adaptado a Viajes Aventura: clima de un destino y precio de un
@@ -193,7 +193,7 @@ destino no se encuentra, el programa pide la ciudad más cercana (por ejemplo, V
 las APIs reales: San Pedro de Atacama, Valle del Elqui con Vicuña, una ciudad inexistente, Norte
 Mágico en USD y Gran Chile en EUR. Sin conexión, se muestra un aviso y el programa sigue funcionando.
 
-## 3.1.2 — Mecanismos básicos de seguridad
+## Mecanismos básicos de seguridad
 
 **Qué se pidió:** inicio de sesión con credenciales encriptadas, validar credenciales y los datos
 enviados a la API, controlar datos sensibles y llaves, y que solo usuarios autenticados usen las
@@ -215,7 +215,7 @@ cliente nuevo queda cifrado; con una llave equivocada aparece el mensaje genéri
 tras 3 fallos queda bloqueado; `<script>`, `12345` y `Vicuña;DROP TABLE` se rechazan como ciudad; y
 el clima y el tipo de cambio con una sesión vencida vuelven al menú principal.
 
-## 3.1.3 — Manejo de errores en servicios externos
+## Manejo de errores en servicios externos
 
 **Qué se pidió:** aplicar manejo de errores al consumir servicios externos, manteniendo la continuidad
 y estabilidad del sistema.
@@ -273,10 +273,10 @@ Esc, no quedó en la base de datos. Teclas simuladas comprobaron que borrar, las
 largo, los asteriscos y Esc funcionan como antes. La regex nueva acepta los mismos correos válidos
 y responde al instante con una entrada maliciosa larga.
 
-## Unidad 4: CRUD completo y acceso seguro (4.1.4 y 4.1.5)
+## CRUD completo y acceso seguro
 
-**Qué se pidió:** revisar el código contra la guía de la Unidad 4 y corregir lo que faltaba para
-cumplir los criterios 4.1.4 (CRUD operativo, respetar el UML) y 4.1.5 (acceso seguro).
+**Qué se pidió:** revisar el código contra la guía de evaluación final y corregir lo que faltaba para
+tener un CRUD operativo que respete el UML y un acceso seguro.
 
 **Revisión del código existente:** los destinos solo permitían cambiar el costo; los paquetes y las
 reservas solo se podían crear y listar. Los métodos `cancelar()`, `marcarReservaPagada()`,
