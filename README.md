@@ -8,17 +8,17 @@ aplicada al caso Viajes Aventura.
 
 ## Avance
 
-| Criterio | Descripción | Estado |
-|---|---|---|
-| 2.1.1 | Implementar el modelo UML en Python | Hecho |
-| 2.1.2 | Principios de POO | Hecho |
-| 2.1.3 | Conexión a base de datos (CRUD) | Hecho |
-| 2.1.4 | Manejo de errores y validaciones | Hecho |
-| 2.1.5 | Validación del código generado con IA | Hecho ([validacion_ia.md](validacion_ia.md)) |
-| 3.1.1 | Consumo de servicios externos (APIs) | Hecho |
-| 3.1.2 | Mecanismos básicos de seguridad | Hecho |
-| 3.1.3 | Manejo de errores en servicios externos | Hecho |
-| 4.1.4 / 4.1.5 | Código de la guía Unidad 4 (CRUD completo y acceso seguro) | Hecho |
+| Descripción | Estado |
+|---|---|
+| Implementar el modelo UML en Python | Hecho |
+| Principios de POO | Hecho |
+| Conexión a base de datos (CRUD) | Hecho |
+| Manejo de errores y validaciones | Hecho |
+| Validación del código generado con IA | Hecho ([validacion_ia.md](validacion_ia.md)) |
+| Consumo de servicios externos (APIs) | Hecho |
+| Mecanismos básicos de seguridad | Hecho |
+| Manejo de errores en servicios externos | Hecho |
+| CRUD completo y acceso seguro | Hecho |
 
 ## Estructura
 
@@ -47,7 +47,7 @@ En la primera ejecución se crea la cuenta del administrador. Los usuarios, dest
 reservas se guardan en `viajes_aventura.db`, junto al código, y se cargan al iniciar de nuevo el
 programa. La base de datos se crea automáticamente y está excluida del control de versiones.
 
-## Persistencia (2.1.3)
+## Persistencia
 
 `database.py` utiliza `sqlite3`, incluida en Python, con tablas relacionadas para usuarios, destinos,
 paquetes, destinos de cada paquete y reservas. La capa de datos ofrece operaciones de creación,
@@ -56,7 +56,7 @@ consulta, actualización y eliminación, y el menú las usa para destinos, paque
 foráneas conservan la relación entre registros. Las contraseñas persistidas siguen siendo hashes,
 no texto plano.
 
-## Validaciones y manejo de errores (2.1.4)
+## Validaciones y manejo de errores
 
 El menú valida campos de texto, formato de correo, contraseña no vacía, enteros y rangos permitidos.
 También comprueba que la salida de un paquete sea posterior a hoy y que el regreso sea posterior a la
@@ -86,7 +86,7 @@ algún dígito, se rechazan y se vuelven a pedir. Se aceptan nombres con espacio
 paquetes son nombres comerciales y sí pueden llevar números (por ejemplo, "Norte Grande en 5 días",
 del caso), por lo que se piden con `pedir_texto()`.
 
-## Servicios externos (3.1.1)
+## Servicios externos
 
 `servicios_externos.py` consume dos APIs públicas con `requests`. Ninguna pide llave de acceso:
 
@@ -100,7 +100,7 @@ Del JSON se toman solo los datos útiles y se comprueba que tengan sentido (que 
 rango válido) antes de mostrarlos. Las consultas están en el menú del cliente (opciones 5 y 6) y la de
 clima también en el del administrador (opción 11), así que solo se usan después de iniciar sesión.
 
-## Seguridad (3.1.2)
+## Seguridad
 
 - **Contraseñas:** se guardan como hash PBKDF2-SHA256 con sal y 600.000 iteraciones (recomendación
   de OWASP), nunca en texto plano (R10). El número de iteraciones queda guardado junto al hash, así
@@ -120,7 +120,7 @@ clima también en el del administrador (opción 11), así que solo se usan despu
 - **Solo usuarios autenticados:** las consultas de clima y tipo de cambio están en los menús con
   sesión iniciada y revisan que la sesión no haya expirado.
 
-## Manejo de errores en servicios externos (3.1.3)
+## Manejo de errores en servicios externos
 
 `servicios_externos.py` centraliza las consultas HTTP con un tiempo máximo de espera de 10 segundos,
 comprueba errores HTTP y normaliza fallos de conexión, JSON y respuestas con formato inesperado como
@@ -128,9 +128,9 @@ comprueba errores HTTP y normaliza fallos de conexión, JSON y respuestas con fo
 humedad, serie, fecha y tipo de cambio positivo. La interfaz muestra avisos genéricos si falla el
 clima o el tipo de cambio y vuelve al menú sin interrumpir el programa.
 
-## Gestión completa (Unidad 4: 4.1.4 y 4.1.5)
+## Gestión completa
 
-Para cumplir la guía de la Unidad 4, cada entidad tiene sus operaciones CRUD desde el menú:
+Cada entidad tiene sus operaciones CRUD desde el menú:
 
 | Entidad | Crear | Consultar | Modificar | Eliminar |
 |---|---|---|---|---|

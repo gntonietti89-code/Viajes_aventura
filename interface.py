@@ -91,7 +91,7 @@ DURACION_MAX = 60
 CUPO_MAX = 100
 MARGEN_MAX = 100
 
-# Bloqueo por intentos fallidos de inicio de sesión (3.1.2).
+# Bloqueo por intentos fallidos de inicio de sesión.
 MAX_INTENTOS = 3
 TIEMPO_BLOQUEO = timedelta(minutes=1)
 intentos_fallidos = {}  # correo -> (intentos, bloqueado_hasta)
@@ -121,7 +121,7 @@ def validar_rut(texto):
 
 
 def validar_ciudad(texto):
-    """3.1.2: solo letras (con tildes), espacios, guiones y apóstrofes, de 2 a 60 caracteres."""
+    """Solo letras (con tildes), espacios, guiones y apóstrofes, de 2 a 60 caracteres."""
     if re.fullmatch(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ' -]{2,60}", texto) and re.search(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]", texto):
         return texto
     return None
@@ -248,7 +248,7 @@ def pedir_clave(mensaje="Contraseña: ", validar_largo=True):
 
 
 def clave_segura(clave):
-    """4.1.5: una clave nueva debe tener al menos una letra y un número."""
+    """Una clave nueva debe tener al menos una letra y un número."""
     return any(c.isalpha() for c in clave) and any(c.isdigit() for c in clave)
 
 
@@ -473,7 +473,7 @@ def registrar_intento_fallido(correo):
 
 
 def sesion_vigente(sesion, usuario):
-    """R11 y 3.1.2: la sesión no está cerrada, no expiró y pertenece a quien la usa."""
+    """R11: la sesión no está cerrada, no expiró y pertenece a quien la usa."""
     if sesion.esValida(datetime.now()) and sesion.getUsuario() is usuario:
         return True
     print("  Su sesión expiró. Inicie sesión de nuevo.")
@@ -827,7 +827,7 @@ def listar_destinos():
 
 def ver_clima_destino(usuario, sesion):
     print("\nClima actual de un destino")
-    # 3.1.2: solo un usuario con sesión vigente consulta servicios externos.
+    # Solo un usuario con sesión vigente consulta servicios externos.
     if not sesion_vigente(sesion, usuario):
         return FINALIZAR_MENU
     destino = elegir(catalogo.listarDestinosDisponibles(), lambda d: f"{d.getNombre()} ({d.getZona()})")
@@ -853,7 +853,7 @@ def ver_clima_destino(usuario, sesion):
 
 def ver_precio_en_moneda(cliente, sesion):
     print("\nPrecio de un paquete en moneda extranjera")
-    # 3.1.2: solo un usuario con sesión vigente consulta servicios externos.
+    # Solo un usuario con sesión vigente consulta servicios externos.
     if not sesion_vigente(sesion, cliente):
         return FINALIZAR_MENU
     paquete = elegir(catalogo.listarPaquetesVigentes(date.today()), describir_paquete)
