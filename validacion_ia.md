@@ -387,3 +387,24 @@ sus reservas, una nueva reserva no mostró la advertencia; y un cliente con una 
 paquete antiguo del mismo nombre reservó el paquete vigente sin advertencia. La segunda reserva se
 probó después de recargar los datos desde SQLite, lo que confirma que la comparación funciona con los
 objetos cargados desde la base de datos.
+
+## Cuenta de administrador y guía de demostración
+
+**Qué se pidió:** preparar una cuenta fija de administrador para que el profesor pueda descargar el
+repositorio, instalar el proyecto y probar el menú de administración.
+
+**Resultado:** `datos_prueba.py` crea el administrador demo `admin@gmail.com` con contraseña
+`admin1234` antes de cargar clientes, paquetes y reservas. Si esa cuenta ya existe como administrador,
+el cargador la conserva; si el correo ya pertenece a un cliente, informa del conflicto en lugar de
+crear una cuenta de otro tipo. La contraseña se persiste como hash mediante el mecanismo existente de
+`Usuario`, no como texto plano. `README.md` anuncia las credenciales, indica que se debe ejecutar
+`datos_prueba.py` antes de `main.py` y enlaza `ADMINISTRADOR_GUIA.md`, que contiene los pasos de
+instalación, ejecución y solución de problemas en Windows.
+
+**Validación ejecutada:** se cargaron los datos en una base SQLite temporal; se confirmó que el
+usuario existe como administrador y que `verificarContrasena("admin1234")` devuelve verdadero.
+Se repitió la carga y se comprobó que no aumentara el número de usuarios. `datos_prueba.py` pasó la
+validación de sintaxis de Pylance y `git diff --check` no reportó errores.
+
+**Nota:** las credenciales están publicadas intencionalmente para una demostración académica y no
+deben usarse en un despliegue real.

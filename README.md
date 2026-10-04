@@ -30,6 +30,7 @@ Viajes_aventura/
 ├── cifrado.py         Cifrado del RUT y el teléfono (Fernet); llave en .env
 ├── servicios_externos.py  Consumo de APIs: clima (Open-Meteo) y tipo de cambio (mindicador.cl)
 ├── datos_prueba.py    Carga clientes, destinos, paquetes y reservas de prueba
+├── ADMINISTRADOR_GUIA.md Instrucciones para instalar y usar el administrador demo
 ├── requirements.txt   Librerías externas (requests, cryptography, python-dotenv)
 ├── uml.png            Diagrama de clases UML oficial
 ├── validacion_ia.md   Registro del uso de IA
@@ -40,12 +41,19 @@ Viajes_aventura/
 
 ```
 pip install -r requirements.txt
+python datos_prueba.py
 python main.py
 ```
 
-En la primera ejecución se crea la cuenta del administrador. Los usuarios, destinos, paquetes y
-reservas se guardan en `viajes_aventura.db`, junto al código, y se cargan al iniciar de nuevo el
-programa. La base de datos se crea automáticamente y está excluida del control de versiones.
+`datos_prueba.py` crea los datos de demostración y una cuenta de administrador para probar el sistema:
+correo `admin@gmail.com`, contraseña `admin1234`. Luego, en `main.py`, selecciona **Iniciar sesión**
+para ingresar. Estas credenciales son solo para la demo; no las uses en un despliegue real.
+Para ver la instalación completa en Windows, consulta [ADMINISTRADOR_GUIA.md](ADMINISTRADOR_GUIA.md).
+
+Los usuarios, destinos, paquetes y reservas se guardan en `viajes_aventura.db`, junto al código, y
+se cargan al iniciar de nuevo el programa. La base de datos se crea automáticamente y está excluida
+del control de versiones. Si ejecutas `main.py` sin cargar antes los datos de prueba, en la primera
+ejecución se te pedirá crear una cuenta de administrador.
 
 ## Persistencia
 

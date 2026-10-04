@@ -12,6 +12,9 @@ from database import BaseDatos
 from main import Administrador, Cliente, Destino
 
 CLAVE_PRUEBA = "Prueba123"
+ADMIN_NOMBRE = "admin"
+ADMIN_CORREO = "admin@gmail.com"
+ADMIN_CLAVE = "admin1234"
 
 CLIENTES = [
     ("Ana Rojas", "ana@prueba.cl", "11111111-1", "+56911111111"),
@@ -52,6 +55,23 @@ RESERVAS = [
     ("benja@prueba.cl", "Sur de Lagos", 4),
     ("carla@prueba.cl", "Gran Chile", 3),  # deja 1 cupo libre para probar el límite
 ]
+
+
+def cargar_administrador(bd):
+    """Crea la cuenta de demostración si todavía no está registrada."""
+    existente = interface.buscar_usuario(ADMIN_CORREO)
+    if existente:
+        if not isinstance(existente, Administrador):
+            raise ValueError(f"El correo {ADMIN_CORREO} ya está registrado como cliente.")
+        print(f"Administrador de demostración: {ADMIN_CORREO} (ya existía)")
+        return
+
+    admin = Administrador(None, ADMIN_NOMBRE, ADMIN_CORREO, ADMIN_CLAVE, interface.catalogo)
+    admin.asignarId(bd.crear_usuario(
+        admin.getNombre(), admin.getCorreo(), admin.getContrasenaHash(), "administrador",
+    ))
+    interface.usuarios.append(admin)
+    print(f"Administrador de demostración: {ADMIN_CORREO}")
 
 
 def cargar_clientes(bd):
@@ -126,6 +146,7 @@ def cargar_reservas(bd, paquetes):
 
 def cargar():
     bd = interface.base_datos
+    cargar_administrador(bd)
     cargar_clientes(bd)
     destinos = cargar_destinos(bd, interface.catalogo)
     paquetes = cargar_paquetes(bd, destinos)
@@ -137,6 +158,7 @@ if __name__ == "__main__":
     try:
         interface.cargar_datos()
         cargar()
-        print(f"\nListo. Contraseña de los clientes de prueba: {CLAVE_PRUEBA}")
+        print(f"\nListo. Administrador: {ADMIN_CORREO} / {ADMIN_CLAVE}")
+        print(f"Contraseña de los clientes de prueba: {CLAVE_PRUEBA}")
     finally:
         interface.base_datos.cerrar()
